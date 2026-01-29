@@ -8,7 +8,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.philabtest.ui.home.HomeScreen
 import com.example.philabtest.ui.home.HomeViewModel
-
+import com.example.philabtest.ui.history.HistoryScreen
+import com.example.philabtest.ui.camera.CameraScreen
 
 @Composable
 fun AppNavHost(homeViewModel: HomeViewModel) {
@@ -22,6 +23,7 @@ fun AppNavHost(homeViewModel: HomeViewModel) {
                 onOpenHistory = { navController.navigate(Routes.HISTORY) }
             )
         }
-
+        composable(Routes.CAMERA) { CameraScreen() }
+        composable(Routes.HISTORY) { HistoryScreen() }
     }
 }
