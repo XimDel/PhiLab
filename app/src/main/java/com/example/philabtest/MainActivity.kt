@@ -4,8 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import com.example.philabtest.ui.home.HomeScreen
 import com.example.philabtest.ui.home.HomeViewModel
+import com.example.philabtest.ui.navigation.AppNavHost
 import com.example.philabtest.ui.theme.PhiLabTestTheme
 
 class MainActivity : ComponentActivity() {
@@ -17,11 +17,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             PhiLabTestTheme {
-                HomeScreen(
-                    viewModel = homeViewModel,
-                    onStartExperiment = { /* TODO: ir a pantalla cámara */ },
-                    onOpenHistory = { /* TODO: ir a historial */ }
-                )
+                AppNavHost(homeViewModel = homeViewModel)
             }
         }
     }
