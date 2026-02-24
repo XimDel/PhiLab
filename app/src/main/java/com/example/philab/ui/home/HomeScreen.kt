@@ -1,4 +1,4 @@
-package com.example.philabtest.ui.home
+package com.example.philab.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,7 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.example.philabtest.ui.theme.PhiLabTestTheme
+import com.example.philab.ui.theme.PhiLabTestTheme
 
 @Composable
 fun HomeScreen(

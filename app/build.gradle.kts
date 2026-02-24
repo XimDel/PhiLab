@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.philabtest"
+    namespace = "com.example.philab"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.philabtest"
+        applicationId = "com.example.philab"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

@@ -1,12 +1,12 @@
-package com.example.philabtest
+package com.example.philab
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import com.example.philabtest.ui.home.HomeViewModel
-import com.example.philabtest.ui.navigation.AppNavHost
-import com.example.philabtest.ui.theme.PhiLabTestTheme
+import com.example.philab.ui.home.HomeViewModel
+import com.example.philab.ui.navigation.AppNavHost
+import com.example.philab.ui.theme.PhiLabTestTheme
 
 class MainActivity : ComponentActivity() {
 

@@ -1,4 +1,4 @@
-package com.example.philabtest
+package com.example.philab
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4

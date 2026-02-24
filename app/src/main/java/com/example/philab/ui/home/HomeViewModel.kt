@@ -3,7 +3,7 @@
 //Mantiene el estado (HomeUiState)
 //Decide qué cambia cuando el usuario hace algo.
 
-package com.example.philabtest.ui.home
+package com.example.philab.ui.home
 
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow

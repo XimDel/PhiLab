@@ -1,6 +1,6 @@
 //define los nombres únicos de las pantallas (rutas) para navegar sin usar strings sueltos.
 
-package com.example.philabtest.ui.navigation
+package com.example.philab.ui.navigation
 
 object Routes {
     const val HOME = "home"

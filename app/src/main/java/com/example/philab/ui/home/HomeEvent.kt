@@ -1,6 +1,6 @@
 //Define qué acciones puede hacer el usuario en esta pantalla.
 
-package com.example.philabtest.ui.home
+package com.example.philab.ui.home
 
 sealed interface HomeEvent {
     data object StartExperiment : HomeEvent

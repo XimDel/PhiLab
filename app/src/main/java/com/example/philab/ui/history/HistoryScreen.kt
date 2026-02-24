@@ -1,4 +1,4 @@
-package com.example.philabtest.ui.history
+package com.example.philab.ui.history
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable

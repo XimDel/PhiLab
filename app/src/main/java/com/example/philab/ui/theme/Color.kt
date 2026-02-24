@@ -1,4 +1,4 @@
-package com.example.philabtest.ui.theme
+package com.example.philab.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

@@ -1,4 +1,4 @@
-package com.example.philabtest.ui.camera
+package com.example.philab.ui.camera
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
-import com.example.philabtest.ui.theme.PhiLabTestTheme
+import com.example.philab.ui.theme.PhiLabTestTheme
 
 @Composable
 fun CameraScreen() {

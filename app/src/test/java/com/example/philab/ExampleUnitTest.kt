@@ -1,4 +1,4 @@
-package com.example.philabtest
+package com.example.philab
 
 import org.junit.Test
 
