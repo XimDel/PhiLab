@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
-import com.example.philab.ui.theme.PhiLabTestTheme
+import com.example.philab.ui.theme.PhiLabTheme
 
 @Composable
 fun CameraScreen() {
@@ -64,7 +64,7 @@ private fun CameraContent(
 @Preview(showBackground = true)
 @Composable
 private fun CameraScreenPreview_PermissionDenied() {
-    PhiLabTestTheme {
+    PhiLabTheme {
         CameraContent(
             hasCameraPermission = false,
             onRequestPermission = {}
@@ -75,7 +75,7 @@ private fun CameraScreenPreview_PermissionDenied() {
 @Preview(showBackground = true)
 @Composable
 private fun CameraScreenPreview_PermissionGranted() {
-    PhiLabTestTheme {
+    PhiLabTheme {
         CameraContent(
             hasCameraPermission = true,
             onRequestPermission = {}

@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import com.example.philab.ui.home.HomeViewModel
 import com.example.philab.ui.navigation.AppNavHost
-import com.example.philab.ui.theme.PhiLabTestTheme
+import com.example.philab.ui.theme.PhiLabTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -16,7 +16,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            PhiLabTestTheme {
+            PhiLabTheme {
                 AppNavHost(homeViewModel = homeViewModel)
             }
         }
