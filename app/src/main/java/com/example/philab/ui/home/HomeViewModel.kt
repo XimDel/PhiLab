@@ -18,13 +18,16 @@ class HomeViewModel : ViewModel() {
     fun onEvent(event: HomeEvent) {
         when (event) {
             HomeEvent.StartExperiment -> {
-                // Cambiar navegacion
+
             }
             HomeEvent.OpenHistory -> {
-                // Cambiar navegacion
+
             }
             HomeEvent.OpenTheory -> {
-                // Cambiar navegacion
+
+            }
+            HomeEvent.OpenLab -> {
+
             }
         }
     }

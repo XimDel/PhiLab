@@ -6,4 +6,5 @@ sealed interface HomeEvent {
     data object StartExperiment : HomeEvent
     data object OpenHistory : HomeEvent
     data object OpenTheory : HomeEvent
+    data object OpenLab : HomeEvent
 }

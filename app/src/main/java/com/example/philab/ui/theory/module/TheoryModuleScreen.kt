@@ -49,7 +49,7 @@ fun TheoryModuleScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.subbackground),
+            painter = painterResource(id = R.drawable.subbackgroundtwo),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop

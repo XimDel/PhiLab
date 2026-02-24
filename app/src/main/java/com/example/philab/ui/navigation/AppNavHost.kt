@@ -11,6 +11,7 @@ import com.example.philab.ui.home.HomeViewModel
 import com.example.philab.ui.history.HistoryScreen
 import com.example.philab.ui.camera.CameraScreen
 import com.example.philab.ui.theory.module.TheoryModuleScreen
+import com.example.philab.ui.lab.menu.LabModuleScreen
 
 @Composable
 fun AppNavHost(homeViewModel: HomeViewModel) {
@@ -29,8 +30,22 @@ fun AppNavHost(homeViewModel: HomeViewModel) {
             HomeScreen(
                 viewModel = homeViewModel,
                 onOpenTheory = { navController.navigate(Routes.THEORY_MODULE) },
-                onStartExperiment = { navController.navigate(Routes.CAMERA) },
+                onOpenLab = { navController.navigate(Routes.LAB_MODULE) },
                 onOpenHistory = { navController.navigate(Routes.HISTORY) }
+            )
+        }
+        composable(Routes.LAB_MODULE) {
+            LabModuleScreen(
+                onBack = { navController.popBackStack() },
+                onStartExperiment = {
+                    navController.navigate(Routes.CAMERA)
+                },
+                onHowItWorks = {
+                    // TODO
+                },
+                onOpenArucoGenerator = {
+                    // TODO
+                }
             )
         }
         composable(Routes.CAMERA) { CameraScreen() }

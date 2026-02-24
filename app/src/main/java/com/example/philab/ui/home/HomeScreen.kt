@@ -31,8 +31,8 @@ import com.example.philab.ui.theme.PhiLabTheme
 fun HomeScreen(
     viewModel: HomeViewModel,
     onOpenTheory: () -> Unit,
-    onStartExperiment: () -> Unit,
-    onOpenHistory: () -> Unit
+    onOpenHistory: () -> Unit,
+    onOpenLab: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -42,9 +42,9 @@ fun HomeScreen(
             viewModel.onEvent(HomeEvent.OpenTheory)
             onOpenTheory()
         },
-        onStartExperiment = {
-            viewModel.onEvent(HomeEvent.StartExperiment)
-            onStartExperiment()
+        onOpenLab = {
+            viewModel.onEvent(HomeEvent.OpenLab)
+            onOpenLab()
         },
         onOpenHistory = {
             viewModel.onEvent(HomeEvent.OpenHistory)
@@ -57,7 +57,7 @@ fun HomeScreen(
 private fun HomeContent(
     isReady: Boolean,
     onOpenTheory: () -> Unit,
-    onStartExperiment: () -> Unit,
+    onOpenLab: () -> Unit,
     onOpenHistory: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -92,7 +92,7 @@ private fun HomeContent(
                 containerColor = Color(0xFFAECFFF),
                 contentColor = Color(0xFF0B3A78),
                 enabled = isReady,
-                onClick = onStartExperiment
+                onClick = onOpenLab
             )
 
             HomeMenuButton(
@@ -147,7 +147,7 @@ private fun HomeScreenPreview() {
         HomeContent(
             isReady = true,
             onOpenTheory = {},
-            onStartExperiment = {},
+            onOpenLab = {},
             onOpenHistory = {}
         )
     }
