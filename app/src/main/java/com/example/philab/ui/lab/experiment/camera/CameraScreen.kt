@@ -51,9 +51,9 @@ private fun CameraContent(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (hasCameraPermission) {
-            Text("Permiso autorizado (siguiente: abrir CameraX)")
+            Text("Permiso autorizado (siguiente: en construcción)")
         } else {
-            Text("Necesitamos permiso para usar la cámara")
+            Text("Se necesita autorización para usar la cámara")
             Button(onClick = onRequestPermission) {
                 Text("Dar permiso")
             }
