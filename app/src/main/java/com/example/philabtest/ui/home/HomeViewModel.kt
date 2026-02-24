@@ -18,10 +18,10 @@ class HomeViewModel : ViewModel() {
     fun onEvent(event: HomeEvent) {
         when (event) {
             HomeEvent.StartExperiment -> {
-                // Navegación se maneja desde la UI (por ahora)
+                // Cambiar navegacion
             }
             HomeEvent.OpenHistory -> {
-                // Navegación se maneja desde la UI (por ahora)
+                // Cambiar navegacion
             }
         }
     }

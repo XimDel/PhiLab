@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "PhiLabTest"
+rootProject.name = "PhiLab"
 include(":app")
  
