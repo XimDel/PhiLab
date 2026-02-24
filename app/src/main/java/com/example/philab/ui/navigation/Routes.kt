@@ -6,4 +6,5 @@ object Routes {
     const val HOME = "home"
     const val CAMERA = "camera"
     const val HISTORY = "history"
+    const val THEORY_MODULE = "theory_module"
 }

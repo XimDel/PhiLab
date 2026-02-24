@@ -23,6 +23,9 @@ class HomeViewModel : ViewModel() {
             HomeEvent.OpenHistory -> {
                 // Cambiar navegacion
             }
+            HomeEvent.OpenTheory -> {
+                // Cambiar navegacion
+            }
         }
     }
 }

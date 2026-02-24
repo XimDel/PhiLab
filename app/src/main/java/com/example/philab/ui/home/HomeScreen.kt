@@ -30,6 +30,7 @@ import com.example.philab.ui.theme.PhiLabTheme
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    onOpenTheory: () -> Unit,
     onStartExperiment: () -> Unit,
     onOpenHistory: () -> Unit
 ) {
@@ -38,8 +39,8 @@ fun HomeScreen(
     HomeContent(
         isReady = state.isReady,
         onOpenTheory = {
-            // TODO: crear TheoryModuleScreen, agregar navegacion
-            // navController.navigate(Routes.THEORY_Module)
+            viewModel.onEvent(HomeEvent.OpenTheory)
+            onOpenTheory()
         },
         onStartExperiment = {
             viewModel.onEvent(HomeEvent.StartExperiment)
