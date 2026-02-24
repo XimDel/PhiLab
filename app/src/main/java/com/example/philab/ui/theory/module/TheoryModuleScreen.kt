@@ -111,7 +111,7 @@ private fun ArticlesBox(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(310.dp),
+            .height(330.dp),
         shape = frameShape,
         color = Color(0xFFAECFFF).copy(alpha = 0.92f),
         border = BorderStroke(2.dp, Color.Black)
