@@ -1,0 +1,174 @@
+package com.example.philab.ui.theory.article
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.philab.R
+import com.example.philab.data.repository.ArticleRepository
+import com.example.philab.domain.model.Article
+import com.example.philab.ui.theme.Poppins
+
+@Composable
+fun ArticleScreen(
+    articleId: String,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+
+    //JSON
+    val articles: List<Article> = remember {
+        ArticleRepository.loadArticles(context)
+    }
+
+    val article = remember(articleId, articles) {
+        articles.find { it.id == articleId }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        Image(
+            painter = painterResource(id = R.drawable.pl_module_background),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        // Contenido
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.Black
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+            }
+
+            // Si no existe el artículo
+            if (article == null) {
+                Spacer(modifier = Modifier.height(32.dp))
+                Text(
+                    text = "Artículo no encontrado",
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.Black
+                )
+                return@Column
+            }
+
+            // Título grande (como tu mockup)
+            Spacer(modifier = Modifier.height(80.dp))
+            Text(
+                text = article.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                textAlign = TextAlign.Center,
+                fontSize = 38.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = Poppins,
+                color = Color.Black
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Imagen del artículo
+            val imageRes = remember(article.image) {
+                context.resources.getIdentifier(article.image, "drawable", context.packageName)
+            }
+
+            if (imageRes != 0) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp),
+                    tonalElevation = 2.dp,
+                    shadowElevation = 2.dp,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Image(
+                        painter = painterResource(id = imageRes),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 180.dp)
+                            .clip(MaterialTheme.shapes.medium),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Cuerpo del artículo sobre tarjeta semi-transparente
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 22.dp),
+                color = Color.White.copy(alpha = 0.75f),
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text(
+                    text = article.content,
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.Black
+                )
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+}
+
+//Solo para el preview
+@Preview(showBackground = true)
+@Composable
+private fun ArticleScreenPreview() {
+    ArticleScreen(
+        articleId = "mecanica_intro",
+        onBack = {}
+    )
+}

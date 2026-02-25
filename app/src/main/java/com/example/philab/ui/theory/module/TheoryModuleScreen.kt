@@ -8,7 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -17,11 +17,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -29,23 +31,22 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.philab.R
+import com.example.philab.data.repository.ArticleRepository
+import com.example.philab.domain.model.Article
 import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
 
 @Composable
 fun TheoryModuleScreen(
     onBack: () -> Unit,
-    onOpenArticle: (articleIndex: Int) -> Unit,
+    onOpenArticle: (articleId: String) -> Unit,
 ) {
-    // TODO: Cambiar navegacion a articulos
-    val items = listOf(
-        "Artículo 1",
-        "Artículo 2",
-        "Artículo 3",
-        "Artículo 4",
-        "Artículo 5",
-        "Artículo 6"
-    )
+    val context = LocalContext.current
+
+    //assets/articles.json
+    val articles: List<Article> = remember {
+        ArticleRepository.loadArticles(context)
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -56,7 +57,6 @@ fun TheoryModuleScreen(
             contentScale = ContentScale.Crop
         )
 
-        // Top bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -68,11 +68,9 @@ fun TheoryModuleScreen(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Volver",
-                    //TODO: Agregar volver al HomeScreen
                     tint = Color.Black
                 )
             }
-
         }
 
         Column(
@@ -96,7 +94,7 @@ fun TheoryModuleScreen(
             Spacer(modifier = Modifier.height(35.dp))
 
             ArticlesBox(
-                titles = items,
+                articles = articles,
                 onOpenArticle = onOpenArticle
             )
         }
@@ -105,8 +103,8 @@ fun TheoryModuleScreen(
 
 @Composable
 private fun ArticlesBox(
-    titles: List<String>,
-    onOpenArticle: (articleIndex: Int) -> Unit
+    articles: List<Article>,
+    onOpenArticle: (articleId: String) -> Unit
 ) {
     val frameShape = RoundedCornerShape(12.dp)
 
@@ -127,10 +125,10 @@ private fun ArticlesBox(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             userScrollEnabled = false
         ) {
-            itemsIndexed(titles) { index, title ->
+            items(articles) { article ->
                 ArticleCardPlaceholder(
-                    title = title,
-                    onClick = { onOpenArticle(index) }
+                    title = article.title,
+                    onClick = { onOpenArticle(article.id) }
                 )
             }
         }
@@ -161,7 +159,6 @@ private fun ArticleCardPlaceholder(
             lineHeight = 15.sp
         )
 
-        // Placeholder icono nav
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
