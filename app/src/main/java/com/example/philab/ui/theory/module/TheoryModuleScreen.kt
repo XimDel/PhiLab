@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.philab.R
 import com.example.philab.ui.theme.PhiLabTheme
+import com.example.philab.ui.theme.Poppins
 
 @Composable
 fun TheoryModuleScreen(
@@ -49,7 +50,7 @@ fun TheoryModuleScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.pl_modulescreen),
+            painter = painterResource(id = R.drawable.pl_modulebackground),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -80,12 +81,13 @@ fun TheoryModuleScreen(
                 .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(95.dp))
+            Spacer(modifier = Modifier.height(160.dp))
 
             Text(
                 text = "¡Aprende más\nsobre Física!",
-                fontSize = 46.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = 43.sp,
+                fontFamily = Poppins,
+                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 color = Color.Black,
                 lineHeight = 52.sp
