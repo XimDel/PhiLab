@@ -39,7 +39,7 @@ fun LabModuleScreen(
 
             // Background
             Image(
-                painter = painterResource(id = R.drawable.subbackgroundtwo),
+                painter = painterResource(id = R.drawable.pl_modulescreen),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop

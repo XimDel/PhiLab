@@ -64,7 +64,7 @@ private fun HomeContent(
 
         // Background
         Image(
-            painter = painterResource(id = R.drawable.homescreenbackground),
+            painter = painterResource(id = R.drawable.pl_homescreen),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
