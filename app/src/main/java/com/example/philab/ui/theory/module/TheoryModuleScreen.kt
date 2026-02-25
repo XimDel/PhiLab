@@ -85,7 +85,7 @@ fun TheoryModuleScreen(
 
             Text(
                 text = "¡Aprende más\nsobre Física!",
-                fontSize = 43.sp,
+                fontSize = 38.sp,
                 fontFamily = Poppins,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,

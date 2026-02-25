@@ -75,7 +75,7 @@ fun LabModuleScreen(
 
                 Text(
                     text = "LABORATORIO\nPORTATIL",
-                    fontSize = 43.sp,
+                    fontSize = 38.sp,
                     fontFamily = Poppins,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black,
@@ -152,7 +152,7 @@ private fun LabMenuButton(
 
             Text(
                 text = text,
-                fontSize = 23.sp,
+                fontSize = 22.sp,
                 fontFamily = Poppins,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,

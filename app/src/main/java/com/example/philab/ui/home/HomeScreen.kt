@@ -120,7 +120,7 @@ private fun HomeMenuButton(
         enabled = enabled,
         modifier = Modifier
             .padding(vertical = 18.dp)
-            .width(190.dp),
+            .width(185.dp),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
@@ -132,7 +132,7 @@ private fun HomeMenuButton(
     ) {
         Text(
             text = text,
-            fontSize = 23.sp,
+            fontSize = 22.sp,
             fontFamily = Poppins,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
