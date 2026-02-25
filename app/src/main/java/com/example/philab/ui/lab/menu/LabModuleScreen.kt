@@ -40,7 +40,7 @@ fun LabModuleScreen(
 
             // Background
             Image(
-                painter = painterResource(id = R.drawable.pl_modulebackground),
+                painter = painterResource(id = R.drawable.pl_module_background),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
@@ -83,7 +83,7 @@ fun LabModuleScreen(
                     lineHeight = 52.sp
                 )
 
-                Spacer(modifier = Modifier.height(34.dp))
+                Spacer(modifier = Modifier.height(35.dp))
 
                 LabMenuButton(
                     iconRes = R.drawable.cameraicon,
