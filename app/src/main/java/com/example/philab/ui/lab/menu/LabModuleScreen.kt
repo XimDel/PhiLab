@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.philab.R
 import com.example.philab.ui.theme.PhiLabTheme
+import com.example.philab.ui.theme.Poppins
 
 @Composable
 fun LabModuleScreen(
@@ -70,12 +71,13 @@ fun LabModuleScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                Spacer(modifier = Modifier.height(110.dp))
+                Spacer(modifier = Modifier.height(150.dp))
 
                 Text(
-                    text = "Laboratorio\nPortatil",
-                    fontSize = 46.sp,
-                    fontWeight = FontWeight.Black,
+                    text = "LABORATORIO\nPORTATIL",
+                    fontSize = 43.sp,
+                    fontFamily = Poppins,
+                    fontWeight = FontWeight.Bold,
                     color = Color.Black,
                     textAlign = TextAlign.Center,
                     lineHeight = 52.sp
@@ -86,23 +88,23 @@ fun LabModuleScreen(
                 LabMenuButton(
                     iconRes = R.drawable.cameraicon,
                     text = "Iniciar\nExperimento",
-                    containerColor = Color(0xFFBDB4CC),
-                    contentColor = Color(0xFF551865),
+                    containerColor = Color(0xFFAECFFF),
+                    contentColor = Color(0xFF263070),
                     onClick = onStartExperiment
                 )
 
                 LabMenuButton(
                     iconRes = R.drawable.helpicon,
                     text = "¿Cómo\nFunciona?",
-                    containerColor = Color(0xFF00D0EF),
-                    contentColor = Color(0xFF231E5D),
+                    containerColor = Color(0xFFA0D8A2),
+                    contentColor = Color(0xFF184919),
                     onClick = onHowItWorks
                 )
 
                 LabMenuButton(
                     iconRes = R.drawable.aruco,
-                    text = "Generador\nde ArUco",
-                    containerColor = Color(0xFFC5D2C0),
+                    text = "Marcador\n ArUco",
+                    containerColor = Color(0xFFD9E2E1),
                     contentColor = Color(0xFF1A1A1A),
                     onClick = onOpenArucoGenerator
                 )
@@ -125,7 +127,7 @@ private fun LabMenuButton(
         enabled = enabled,
         modifier = Modifier
             .padding(vertical = 17.dp)
-            .fillMaxWidth(0.82f)
+            .fillMaxWidth(0.75f)
             .heightIn(min = 72.dp),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(
@@ -146,16 +148,17 @@ private fun LabMenuButton(
                 modifier = Modifier.size(36.dp)
             )
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             Text(
                 text = text,
-                fontSize = 25.sp,
+                fontSize = 23.sp,
+                fontFamily = Poppins,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
-                lineHeight = 25.sp,
+                lineHeight = 24.sp,
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(1.6f)
                     .padding(vertical = 5.dp)
             )
         }

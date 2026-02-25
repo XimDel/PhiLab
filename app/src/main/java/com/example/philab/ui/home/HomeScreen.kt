@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.philab.R
 import com.example.philab.ui.theme.PhiLabTheme
+import com.example.philab.ui.theme.Poppins
 
 @Composable
 fun HomeScreen(
@@ -74,21 +75,21 @@ private fun HomeContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 28.dp, top = 300.dp, end = 0.dp, bottom = 0.dp),
+                .padding(start = 25.dp, top = 320.dp, end = 0.dp, bottom = 0.dp),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.Start
         ) {
 
             HomeMenuButton(
-                text = "Módulo\nTeórico",
-                containerColor = Color(0xFFEED0D0),
+                text = "Conceptos",
+                containerColor = Color(0xFFF2B4A5),
                 contentColor = Color(0xFF983939),
                 enabled = true,
                 onClick = onOpenTheory
             )
 
             HomeMenuButton(
-                text = "Módulo\nPráctico",
+                text = "Laboratorio",
                 containerColor = Color(0xFFAECFFF),
                 contentColor = Color(0xFF0B3A78),
                 enabled = isReady,
@@ -96,8 +97,8 @@ private fun HomeContent(
             )
 
             HomeMenuButton(
-                text = "Historial y\nReportes",
-                containerColor = Color(0xFF5CF68C),
+                text = "Resultados",
+                containerColor = Color(0xFF76BD9D),
                 contentColor = Color(0xFF1B5E20),
                 enabled = true,
                 onClick = onOpenHistory
@@ -118,8 +119,8 @@ private fun HomeMenuButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier
-            .padding(vertical = 17.dp)
-            .width(180.dp),
+            .padding(vertical = 18.dp)
+            .width(190.dp),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
@@ -131,10 +132,11 @@ private fun HomeMenuButton(
     ) {
         Text(
             text = text,
-            fontSize = 25.sp,
+            fontSize = 23.sp,
+            fontFamily = Poppins,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
-            lineHeight = 25.sp,
+            lineHeight = 24.sp,
             modifier = Modifier.padding(vertical = 5.dp)
         )
     }
