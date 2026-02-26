@@ -62,7 +62,7 @@ fun ArticleScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                    .padding(top = 26.dp, start = 14.dp, end = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
@@ -92,7 +92,7 @@ fun ArticleScreen(
             }
 
             // Título
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(70.dp))
             Text(
                 text = article.title,
                 modifier = Modifier
@@ -181,7 +181,7 @@ fun ArticleScreen(
 @Composable
 private fun ArticleScreenPreview() {
     ArticleScreen(
-        articleId = "mecanica_intro",
+        articleId = "mru",
         onBack = {}
     )
 }

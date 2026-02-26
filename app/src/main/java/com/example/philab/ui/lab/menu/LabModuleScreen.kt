@@ -50,7 +50,7 @@ fun LabModuleScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 26.dp, start = 14.dp),
+                    .padding(top = 26.dp, start = 14.dp, end = 14.dp),
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {

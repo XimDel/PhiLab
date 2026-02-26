@@ -2,16 +2,18 @@ package com.example.philab.ui.theory.module
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -43,7 +45,6 @@ fun TheoryModuleScreen(
 ) {
     val context = LocalContext.current
 
-    //assets/articles.json
     val articles: List<Article> = remember {
         ArticleRepository.loadArticles(context)
     }
@@ -73,11 +74,11 @@ fun TheoryModuleScreen(
             }
         }
 
+        // Title
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(160.dp))
 
@@ -88,15 +89,20 @@ fun TheoryModuleScreen(
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 color = Color.Black,
-                lineHeight = 52.sp
+                lineHeight = 52.sp,
+                modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(35.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            ArticlesBox(
-                articles = articles,
-                onOpenArticle = onOpenArticle
-            )
+            Box(
+                modifier = Modifier.weight(1f)
+            ) {
+                ArticlesBox(
+                    articles = articles,
+                    onOpenArticle = onOpenArticle
+                )
+            }
         }
     }
 }
@@ -106,28 +112,29 @@ private fun ArticlesBox(
     articles: List<Article>,
     onOpenArticle: (articleId: String) -> Unit
 ) {
-    val frameShape = RoundedCornerShape(12.dp)
-
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(330.dp),
-        shape = frameShape,
-        color = Color(0xFFAECFFF).copy(alpha = 0.92f),
-        border = BorderStroke(2.dp, Color.Black)
+            .fillMaxHeight()
+            .padding(horizontal = 17.dp)
+            .padding(bottom = 22.dp),
+        color = Color.White.copy(alpha = 0.45f),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.15f))
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+        LazyVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Fixed(2),
             modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            userScrollEnabled = false
+                .padding(12.dp)
+                .fillMaxSize(),
+            verticalItemSpacing = 12.dp,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(articles) { article ->
-                ArticleCardPlaceholder(
-                    title = article.title,
+            items(articles, key = { it.id }) { article ->
+                ArticlePreviewCard(
+                    article = article,
                     onClick = { onOpenArticle(article.id) }
                 )
             }
@@ -136,31 +143,86 @@ private fun ArticlesBox(
 }
 
 @Composable
-private fun ArticleCardPlaceholder(
-    title: String,
+private fun ArticlePreviewCard(
+    article: Article,
     onClick: () -> Unit
 ) {
-    val cardShape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(14.dp)
 
-    Box(
+    Card(
         modifier = Modifier
-            .aspectRatio(0.75f)
-            .clip(cardShape)
-            .background(Color(0xFF3F51B5).copy(alpha = 0.75f))
-            .border(2.dp, Color.Black, cardShape)
-            .clickable(onClick = onClick)
-            .padding(10.dp)
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.08f))
     ) {
-        Text(
-            text = title,
-            fontSize = 16.sp,
-            fontFamily = Poppins,
-            fontWeight = FontWeight.Normal,
-            color = Color.White,
-            lineHeight = 15.sp
-        )
+        Column {
 
+            ArticleCoverImage(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp),
+                imageName = article.image
+            )
+
+            Column(
+                modifier = Modifier.padding(10.dp)
+            ) {
+                // Title del articulo
+                Text(
+                    text = article.title,
+                    fontFamily = Poppins,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    color = Color(0xFF1F1F1F)
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                // Preview contenido
+                Text(
+                    text = articlePreviewText(article.content, 47),
+                    fontFamily = Poppins,
+                    fontSize = 12.sp,
+                    color = Color(0xFF616161),
+                    lineHeight = 16.sp
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun ArticleCoverImage(
+    modifier: Modifier,
+    imageName: String
+) {
+    val context = LocalContext.current
+    val fallbackRes = R.drawable.pl_module_background
+
+    val resId = remember(imageName) {
+        val id = context.resources.getIdentifier(imageName, "drawable", context.packageName)
+        if (id != 0) id else fallbackRes
+    }
+
+    Image(
+        painter = painterResource(id = resId),
+        contentDescription = null,
+        modifier = modifier.clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)),
+        contentScale = ContentScale.Crop
+    )
+}
+
+private fun articlePreviewText(content: String, maxChars: Int): String {
+    val raw = content
+        .replace("\n", " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    return if (raw.length <= maxChars) raw else raw.take(maxChars).trimEnd() + "…"
 }
 
 @Preview(showBackground = true)
