@@ -154,18 +154,12 @@ private fun ArticleCardPlaceholder(
         Text(
             text = title,
             fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
+            fontFamily = Poppins,
+            fontWeight = FontWeight.Normal,
             color = Color.White,
             lineHeight = 15.sp
         )
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(36.dp)
-                .border(1.dp, Color.Black, RoundedCornerShape(8.dp))
-                .background(Color.White.copy(alpha = 0.15f))
-        )
     }
 }
 

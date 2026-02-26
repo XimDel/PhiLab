@@ -2,13 +2,13 @@
   {
     "id": "mecanica_intro",
     "title": "¿Qué es la Física Mecánica?",
-    "image": "aruco",
+    "image": "imagetest",
     "content": "La física mecánica es la rama de la física que estudia el movimiento de los cuerpos y las fuerzas que actúan sobre ellos. Nos permite comprender cómo se mueven los objetos en nuestro entorno cotidiano, desde una pelota hasta los planetas.\n\nEs la base para entender conceptos como velocidad, aceleración y fuerza."
   },
   {
     "id": "mru",
     "title": "Movimiento Rectilíneo Uniforme (MRU)",
-    "image": "aruco",
-    "content": "El movimiento rectilíneo uniforme ocurre cuando un objeto se desplaza en línea recta con velocidad constante.\n\nEn este tipo de movimiento, la aceleración es igual a cero, ya que la velocidad no cambia con el tiempo."
+    "image": "imagetest2",
+    "content": "El movimiento rectilíneo uniforme ocurre cuando un objeto se desplaza en línea recta con velocidad constante. En este tipo de movimiento, la aceleración es igual a cero, ya que la velocidad no cambia con el tiempo."
   }
 ]

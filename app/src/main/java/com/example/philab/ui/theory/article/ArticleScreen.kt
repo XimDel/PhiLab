@@ -1,7 +1,6 @@
 package com.example.philab.ui.theory.article
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,7 +11,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +37,7 @@ fun ArticleScreen(
 ) {
     val context = LocalContext.current
 
-    //JSON
+    // JSON
     val articles: List<Article> = remember {
         ArticleRepository.loadArticles(context)
     }
@@ -56,12 +56,9 @@ fun ArticleScreen(
         )
 
         // Contenido
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
 
+            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -77,15 +74,16 @@ fun ArticleScreen(
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
-
             }
 
-            // Si no existe el artículo
+            // Si no existe artículo
             if (article == null) {
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(52.dp))
                 Text(
                     text = "Artículo no encontrado",
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.Black
@@ -93,7 +91,7 @@ fun ArticleScreen(
                 return@Column
             }
 
-            // Título grande (como tu mockup)
+            // Título
             Spacer(modifier = Modifier.height(80.dp))
             Text(
                 text = article.title,
@@ -102,6 +100,7 @@ fun ArticleScreen(
                     .padding(horizontal = 24.dp),
                 textAlign = TextAlign.Center,
                 fontSize = 38.sp,
+                lineHeight = 42.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = Poppins,
                 color = Color.Black
@@ -109,61 +108,75 @@ fun ArticleScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Imagen del artículo
-            val imageRes = remember(article.image) {
-                context.resources.getIdentifier(article.image, "drawable", context.packageName)
-            }
+            // Scroll
+            val scrollState = rememberScrollState()
 
-            if (imageRes != 0) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+            ) {
+
+                // Imagen
+                val imageRes = remember(article.image) {
+                    context.resources.getIdentifier(article.image, "drawable", context.packageName)
+                }
+
+                if (imageRes != 0) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 17.dp),
+                        tonalElevation = 2.dp,
+                        shadowElevation = 2.dp,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Image(
+                            painter = painterResource(id = imageRes),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 180.dp)
+                                .clip(MaterialTheme.shapes.medium),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // Cuerpo
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 18.dp),
-                    tonalElevation = 2.dp,
-                    shadowElevation = 2.dp,
+                        .padding(horizontal = 17.dp)
+                        .padding(bottom = 22.dp),
+                    color = Color.White.copy(alpha = 0.55f),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
                     shape = MaterialTheme.shapes.medium
                 ) {
-                    Image(
-                        painter = painterResource(id = imageRes),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 180.dp)
-                            .clip(MaterialTheme.shapes.medium),
-                        contentScale = ContentScale.Crop
+                    Text(
+                        text = article.content,
+                        modifier = Modifier.padding(16.dp),
+                        color = Color.Black,
+                        fontSize = 18.sp,
+                        fontFamily = Poppins,
+                        fontWeight = FontWeight.Normal,
+                        textAlign = TextAlign.Justify
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-            } else {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(40.dp))
             }
-
-            // Cuerpo del artículo sobre tarjeta semi-transparente
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp)
-                    .padding(bottom = 22.dp),
-                color = Color.White.copy(alpha = 0.75f),
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp,
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text(
-                    text = article.content,
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.Black
-                )
-            }
-
-            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
-//Solo para el preview
+// Solo para el preview
 @Preview(showBackground = true)
 @Composable
 private fun ArticleScreenPreview() {
