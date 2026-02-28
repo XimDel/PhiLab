@@ -48,7 +48,7 @@ fun PreExperimentTipsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 24.dp)
+                .padding(bottom = 45.dp)
         ) {
 
             Row(
@@ -112,7 +112,7 @@ fun PreExperimentTipsScreen(
                         text = tipsText,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 380.dp)
+                            .heightIn(max = 350.dp)
                             .verticalScroll(scrollState),
                         fontSize = 16.sp,
                         color = Color.Black,
