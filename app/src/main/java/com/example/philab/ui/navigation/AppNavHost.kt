@@ -6,17 +6,16 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.philab.ui.home.HomeScreen
-import com.example.philab.ui.home.HomeViewModel
-import com.example.philab.ui.history.HistoryScreen
 import com.example.philab.ui.camera.CameraScreen
+import com.example.philab.ui.history.HistoryScreen
+import com.example.philab.ui.home.HomeScreen
 import com.example.philab.ui.lab.experiment.tips.PreExperimentTipsScreen
-import com.example.philab.ui.theory.module.TheoryModuleScreen
 import com.example.philab.ui.lab.menu.LabModuleScreen
 import com.example.philab.ui.theory.article.ArticleScreen
+import com.example.philab.ui.theory.module.TheoryModuleScreen
 
 @Composable
-fun AppNavHost(homeViewModel: HomeViewModel) {
+fun AppNavHost() {
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
@@ -44,7 +43,6 @@ fun AppNavHost(homeViewModel: HomeViewModel) {
 
         composable(Routes.HOME) {
             HomeScreen(
-                viewModel = homeViewModel,
                 onOpenTheory = { navController.navigate(Routes.THEORY_MODULE) },
                 onOpenLab = { navController.navigate(Routes.LAB_MODULE) },
                 onOpenHistory = { navController.navigate(Routes.HISTORY) }
@@ -54,9 +52,7 @@ fun AppNavHost(homeViewModel: HomeViewModel) {
         composable(Routes.LAB_MODULE) {
             LabModuleScreen(
                 onBack = { navController.popBackStack() },
-                onStartExperiment = {
-                    navController.navigate(Routes.TIPS_MODULE)
-                },
+                onStartExperiment = { navController.navigate(Routes.TIPS_MODULE) },
                 onHowItWorks = {
                     // TODO
                 },
@@ -69,9 +65,7 @@ fun AppNavHost(homeViewModel: HomeViewModel) {
         composable(Routes.TIPS_MODULE) {
             PreExperimentTipsScreen(
                 onBack = { navController.popBackStack() },
-                onStartExperiment = {
-                    navController.navigate(Routes.CAMERA)
-                }
+                onStartExperiment = { navController.navigate(Routes.CAMERA) }
             )
         }
 

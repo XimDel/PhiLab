@@ -12,8 +12,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,36 +28,9 @@ import com.example.philab.ui.theme.Poppins
 
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel,
     onOpenTheory: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenLab: () -> Unit
-) {
-    val state by viewModel.uiState.collectAsState()
-
-    HomeContent(
-        isReady = state.isReady,
-        onOpenTheory = {
-            viewModel.onEvent(HomeEvent.OpenTheory)
-            onOpenTheory()
-        },
-        onOpenLab = {
-            viewModel.onEvent(HomeEvent.OpenLab)
-            onOpenLab()
-        },
-        onOpenHistory = {
-            viewModel.onEvent(HomeEvent.OpenHistory)
-            onOpenHistory()
-        }
-    )
-}
-
-@Composable
-private fun HomeContent(
-    isReady: Boolean,
-    onOpenTheory: () -> Unit,
-    onOpenLab: () -> Unit,
-    onOpenHistory: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -75,7 +46,7 @@ private fun HomeContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 25.dp, top = 320.dp, end = 0.dp, bottom = 0.dp),
+                .padding(start = 25.dp, top = 320.dp),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.Start
         ) {
@@ -84,7 +55,6 @@ private fun HomeContent(
                 text = "Conceptos",
                 containerColor = Color(0xFFF2B4A5),
                 contentColor = Color(0xFF983939),
-                enabled = true,
                 onClick = onOpenTheory
             )
 
@@ -92,7 +62,6 @@ private fun HomeContent(
                 text = "Laboratorio",
                 containerColor = Color(0xFFAECFFF),
                 contentColor = Color(0xFF0B3A78),
-                enabled = isReady,
                 onClick = onOpenLab
             )
 
@@ -100,7 +69,6 @@ private fun HomeContent(
                 text = "Resultados",
                 containerColor = Color(0xFF76BD9D),
                 contentColor = Color(0xFF1B5E20),
-                enabled = true,
                 onClick = onOpenHistory
             )
         }
@@ -112,21 +80,17 @@ private fun HomeMenuButton(
     text: String,
     containerColor: Color,
     contentColor: Color,
-    enabled: Boolean,
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
-        enabled = enabled,
         modifier = Modifier
             .padding(vertical = 18.dp)
             .width(185.dp),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
-            contentColor = contentColor,
-            disabledContainerColor = containerColor.copy(alpha = 0.6f),
-            disabledContentColor = contentColor.copy(alpha = 0.6f)
+            contentColor = contentColor
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
     ) {
@@ -146,8 +110,7 @@ private fun HomeMenuButton(
 @Composable
 private fun HomeScreenPreview() {
     PhiLabTheme {
-        HomeContent(
-            isReady = true,
+        HomeScreen(
             onOpenTheory = {},
             onOpenLab = {},
             onOpenHistory = {}
