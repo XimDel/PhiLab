@@ -4,6 +4,8 @@ package com.example.philab.ui.navigation
 
 object Routes {
     const val HOME = "home"
+    const val CAMERA_PERMISSION = "camera_permission"
+
     const val CAMERA = "camera"
     const val HISTORY = "history"
     const val THEORY_MODULE = "theory_module"

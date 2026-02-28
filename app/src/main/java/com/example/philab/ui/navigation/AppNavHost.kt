@@ -6,9 +6,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.philab.ui.camera.CameraScreen
+import com.example.philab.ui.camera.CameraPermissionScreen
 import com.example.philab.ui.history.HistoryScreen
 import com.example.philab.ui.home.HomeScreen
+import com.example.philab.ui.lab.experiment.camera.CameraScreen
 import com.example.philab.ui.lab.experiment.tips.PreExperimentTipsScreen
 import com.example.philab.ui.lab.menu.LabModuleScreen
 import com.example.philab.ui.theory.article.ArticleScreen
@@ -65,7 +66,18 @@ fun AppNavHost() {
         composable(Routes.TIPS_MODULE) {
             PreExperimentTipsScreen(
                 onBack = { navController.popBackStack() },
-                onStartExperiment = { navController.navigate(Routes.CAMERA) }
+                onStartExperiment = { navController.navigate(Routes.CAMERA_PERMISSION) }
+            )
+        }
+
+        composable(Routes.CAMERA_PERMISSION) {
+            CameraPermissionScreen(
+                onPermissionGranted = {
+                    navController.navigate(Routes.CAMERA) {
+                        popUpTo(Routes.CAMERA_PERMISSION) { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() }
             )
         }
 
