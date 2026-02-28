@@ -2,55 +2,55 @@
   {
     "id": "fisica_mecanica",
     "title": "Física Mecánica",
-    "image": "imagetest",
+    "image": "imagetest_article1",
     "content": "La Física Mecánica es la rama de la física que estudia el movimiento de los cuerpos y las fuerzas que actúan sobre ellos. Permite analizar cómo y por qué se mueven los objetos en nuestro entorno, desde una pelota hasta vehículos o planetas.\n\nSe divide principalmente en cinemática y dinámica. La mecánica es fundamental en la ingeniería, la tecnología y los experimentos prácticos, ya que proporciona las bases matemáticas para describir el comportamiento del movimiento."
   },
   {
     "id": "mru",
     "title": "Movimiento Rectilíneo Uniforme (MRU)",
-    "image": "imagetest2",
+    "image": "imagetest_article2",
     "content": "El Movimiento Rectilíneo Uniforme (MRU) ocurre cuando un objeto se desplaza en línea recta con velocidad constante.\n\nEn este tipo de movimiento la aceleración es cero, ya que la velocidad no cambia con el tiempo. La posición se calcula mediante la ecuación:\n\nx = x0 + v·t\n\nDonde x es la posición final, x0 la posición inicial, v la velocidad constante y t el tiempo transcurrido."
   },
   {
     "id": "mrua",
     "title": "Movimiento Rectilíneo Uniformemente Acelerado (MRUA)",
-    "image": "aruco",
+    "image": "imagetest_article3",
     "content": "El Movimiento Rectilíneo Uniformemente Acelerado (MRUA) se presenta cuando un objeto se mueve en línea recta con aceleración constante.\n\nEn este caso, la velocidad cambia de manera uniforme con el tiempo. Sus ecuaciones principales son:\n\nv = v0 + a·t\nx = x0 + v0·t + (1/2)·a·t²\n\nDonde a es la aceleración constante. Este tipo de movimiento es común en caídas libres y en objetos que arrancan o frenan."
   },
     {
     "id": "cinematica",
     "title": "Cinemática",
-    "image": "imagetest",
+    "image": "imagetest_article4",
     "content": "La cinemática es la parte de la mecánica que estudia el movimiento de los cuerpos sin analizar las causas que lo producen.\n\nSe enfoca en variables como posición, desplazamiento, velocidad y aceleración. A través de modelos matemáticos permite describir cómo cambia el movimiento en función del tiempo, siendo clave para el análisis experimental en física."
   },
   {
     "id": "tiempo",
     "title": "Tiempo",
-    "image": "imagetest2",
+    "image": "imagetest_article5",
     "content": "El tiempo es una magnitud física fundamental que permite medir la duración de los fenómenos y el orden en que ocurren los eventos.\n\nEn el Sistema Internacional (SI), se mide en segundos (s). En mecánica, el tiempo es la variable independiente que permite analizar cómo cambian la posición, la velocidad y la aceleración."
   },
   {
     "id": "posicion",
     "title": "Posición",
-    "image": "aruco",
+    "image": "imagetest_article6",
     "content": "La posición indica el lugar que ocupa un objeto respecto a un sistema de referencia.\n\nSe representa comúnmente con la variable x en movimientos rectilíneos. La posición puede cambiar con el tiempo y su variación permite calcular el desplazamiento del objeto durante un intervalo determinado."
   },
   {
     "id": "velocidad",
     "title": "Velocidad",
-    "image": "imagetest",
+    "image": "imagetest_article7",
     "content": "La velocidad es la magnitud física que indica qué tan rápido y en qué dirección se mueve un objeto.\n\nSe define como el cambio de posición respecto al tiempo:\n\nv = Δx / Δt\n\nEn el Sistema Internacional se mide en metros por segundo (m/s). Puede ser constante (MRU) o variar con el tiempo (MRUA)."
   },
   {
     "id": "aceleracion",
     "title": "Aceleración",
-    "image": "imagetest2",
+    "image": "imagetest_article8",
     "content": "La aceleración es la magnitud que mide el cambio de velocidad respecto al tiempo.\n\nSe calcula como:\n\na = Δv / Δt\n\nEn el Sistema Internacional se mide en metros por segundo al cuadrado (m/s²). Una aceleración puede aumentar o disminuir la velocidad de un objeto, o cambiar su dirección."
   },
   {
     "id": "error_experimental",
     "title": "Error Experimental",
-    "image": "img_error",
+    "image": "imagetest_article9",
     "content": "El error experimental es la diferencia entre el valor medido y el valor real o teórico de una magnitud.\n\nPuede deberse a limitaciones del instrumento, condiciones ambientales o errores humanos. Se clasifica en error sistemático y error aleatorio.\n\nEn experimentos de física, analizar el error es fundamental para evaluar la precisión y confiabilidad de los resultados obtenidos."
   }
 ]

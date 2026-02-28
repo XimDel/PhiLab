@@ -137,9 +137,9 @@ fun ArticleScreen(
                             contentDescription = null,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 180.dp)
+                                .wrapContentHeight()
                                 .clip(MaterialTheme.shapes.medium),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.FillWidth
                         )
                     }
 
@@ -181,7 +181,7 @@ fun ArticleScreen(
 @Composable
 private fun ArticleScreenPreview() {
     ArticleScreen(
-        articleId = "mru",
+        articleId = "error_experimental",
         onBack = {}
     )
 }
