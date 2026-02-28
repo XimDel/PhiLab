@@ -7,4 +7,4 @@
 7. Evite movimientos bruscos del dispositivo.
 8. Repita el experimento si observa errores de medición.
 9. Revise los datos obtenidos antes de exportarlos.
-10. Compare los resultados con el valor teórico.
+10. Imprima y ubique el ArUco antes de iniciar la medición.
