@@ -69,7 +69,12 @@ fun AppNavHost() {
             )
         }
 
-        composable(Routes.CAMERA) { CameraScreen() }
+        composable(Routes.CAMERA) {
+            CameraScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         composable(Routes.HISTORY) { HistoryScreen() }
     }
 }

@@ -1,4 +1,4 @@
-//define los nombres únicos de las pantallas (rutas) para navegar sin usar strings sueltos.
+//nombres únicos de las pantallas (rutas) para navegar.
 
 package com.example.philab.ui.navigation
 
