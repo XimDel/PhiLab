@@ -10,6 +10,7 @@ import com.example.philab.ui.home.HomeScreen
 import com.example.philab.ui.home.HomeViewModel
 import com.example.philab.ui.history.HistoryScreen
 import com.example.philab.ui.camera.CameraScreen
+import com.example.philab.ui.lab.experiment.tips.PreExperimentTipsScreen
 import com.example.philab.ui.theory.module.TheoryModuleScreen
 import com.example.philab.ui.lab.menu.LabModuleScreen
 import com.example.philab.ui.theory.article.ArticleScreen
@@ -54,13 +55,22 @@ fun AppNavHost(homeViewModel: HomeViewModel) {
             LabModuleScreen(
                 onBack = { navController.popBackStack() },
                 onStartExperiment = {
-                    navController.navigate(Routes.CAMERA)
+                    navController.navigate(Routes.TIPS_MODULE)
                 },
                 onHowItWorks = {
                     // TODO
                 },
                 onOpenArucoGenerator = {
                     // TODO
+                }
+            )
+        }
+
+        composable(Routes.TIPS_MODULE) {
+            PreExperimentTipsScreen(
+                onBack = { navController.popBackStack() },
+                onStartExperiment = {
+                    navController.navigate(Routes.CAMERA)
                 }
             )
         }

@@ -1,0 +1,10 @@
+1. Coloque el objeto sobre una superficie plana y estable.
+2. Asegúrese de que haya buena iluminación.
+3. Evite sombras que puedan interferir con la detección.
+4. Mantenga el teléfono firme durante la grabación.
+5. Verifique que el objeto esté completamente visible.
+6. Calibre correctamente la escala antes de iniciar.
+7. Evite movimientos bruscos del dispositivo.
+8. Repita el experimento si observa errores de medición.
+9. Revise los datos obtenidos antes de exportarlos.
+10. Compare los resultados con el valor teórico.

@@ -38,7 +38,6 @@ fun LabModuleScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
 
-            // Background
             Image(
                 painter = painterResource(id = R.drawable.pl_module_background),
                 contentDescription = null,
@@ -46,7 +45,6 @@ fun LabModuleScreen(
                 contentScale = ContentScale.Crop
             )
 
-            // flecha atras
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -57,8 +55,7 @@ fun LabModuleScreen(
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        //TODO: Agregar volver al HomeScreen
+                        contentDescription = "Back",
                         tint = Color.Black
                     )
                 }

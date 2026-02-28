@@ -9,7 +9,8 @@ object Routes {
     const val THEORY_MODULE = "theory_module"
     const val LAB_MODULE = "lab_module"
 
-    const val ARTICLE = "article"
+    const val TIPS_MODULE = "tips_module"
+
     const val ARTICLE_ROUTE = "article/{articleId}"
 
     fun articleRoute(articleId: String) = "article/$articleId"
