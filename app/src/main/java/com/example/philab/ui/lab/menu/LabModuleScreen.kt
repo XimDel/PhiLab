@@ -39,7 +39,7 @@ fun LabModuleScreen(
         Box(modifier = Modifier.fillMaxSize()) {
 
             Image(
-                painter = painterResource(id = R.drawable.pl_module_background),
+                painter = painterResource(id = R.drawable.pl_subbackground),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
@@ -72,7 +72,7 @@ fun LabModuleScreen(
 
                 Text(
                     text = "LABORATORIO\nPORTATIL",
-                    fontSize = 38.sp,
+                    fontSize = 30.sp,
                     fontFamily = Poppins,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black,
@@ -123,8 +123,8 @@ private fun LabMenuButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier
-            .padding(vertical = 17.dp)
-            .fillMaxWidth(0.75f)
+            .padding(vertical = 16.dp)
+            .fillMaxWidth(0.73f)
             .heightIn(min = 72.dp),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(
@@ -149,7 +149,7 @@ private fun LabMenuButton(
 
             Text(
                 text = text,
-                fontSize = 22.sp,
+                fontSize = 18.sp,
                 fontFamily = Poppins,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,

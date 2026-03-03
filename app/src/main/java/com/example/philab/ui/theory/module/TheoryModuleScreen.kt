@@ -50,7 +50,7 @@ fun TheoryModuleScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.pl_module_background),
+            painter = painterResource(id = R.drawable.pl_subbackground),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -82,7 +82,7 @@ fun TheoryModuleScreen(
 
             Text(
                 text = "¡Aprende más\nsobre Física!",
-                fontSize = 38.sp,
+                fontSize = 30.sp,
                 fontFamily = Poppins,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -199,7 +199,7 @@ private fun ArticleCoverImage(
     imageName: String
 ) {
     val context = LocalContext.current
-    val fallbackRes = R.drawable.pl_module_background
+    val fallbackRes = R.drawable.pl_subbackground
 
     val resId = remember(imageName) {
         val id = context.resources.getIdentifier(imageName, "drawable", context.packageName)

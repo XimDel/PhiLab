@@ -5,5 +5,5 @@ import androidx.compose.runtime.Composable
 
 @Composable
 fun HistoryScreen() {
-    Text("Historial (próximo: Room)")
+    Text("Historial (Room)")
 }

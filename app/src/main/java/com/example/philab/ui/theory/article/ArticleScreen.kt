@@ -49,7 +49,7 @@ fun ArticleScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.pl_module_background),
+            painter = painterResource(id = R.drawable.pl_subbackground),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -99,7 +99,7 @@ fun ArticleScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp),
                 textAlign = TextAlign.Center,
-                fontSize = 38.sp,
+                fontSize = 30.sp,
                 lineHeight = 42.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = Poppins,
@@ -163,7 +163,7 @@ fun ArticleScreen(
                         text = article.content,
                         modifier = Modifier.padding(16.dp),
                         color = Color.Black,
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         fontFamily = Poppins,
                         fontWeight = FontWeight.Normal,
                         textAlign = TextAlign.Justify

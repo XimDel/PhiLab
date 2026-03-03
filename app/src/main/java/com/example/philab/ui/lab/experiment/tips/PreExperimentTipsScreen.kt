@@ -30,123 +30,136 @@ fun PreExperimentTipsScreen(
     onStartExperiment: () -> Unit
 ) {
     val context = LocalContext.current
-
     val tipsText = remember {
         runCatching { TipsRepository.loadTips(context).trim() }
             .getOrElse { "" }
     }
 
+    val scrollState = rememberScrollState()
+
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.pl_module_background),
+            painter = painterResource(id = R.drawable.pl_subbackground),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 45.dp)
-        ) {
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 26.dp, start = 14.dp, end = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.Black
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-            }
-
-            Spacer(modifier = Modifier.height(70.dp))
-            Text(
-                text = "Recomendaciones\nPrevias",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                textAlign = TextAlign.Center,
-                fontSize = 32.sp,
-                lineHeight = 42.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = Poppins,
-                color = Color.Black
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                color = Color.White.copy(alpha = 0.55f),
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp,
-                shape = MaterialTheme.shapes.medium
-            ) {
-                val scrollState = rememberScrollState()
-
-                Column(
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(top = 26.dp, start = 14.dp, end = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.exclamationicon),
-                        contentDescription = "Help icon",
-                        modifier = Modifier.size(64.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = tipsText,
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.Black
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            },
+            bottomBar = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 45.dp)
+                ) {
+                    Button(
+                        onClick = onStartExperiment,
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF5061C7),
+                            contentColor = Color(0xFFAECFFF)
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 350.dp)
-                            .verticalScroll(scrollState),
-                        fontSize = 16.sp,
-                        color = Color.Black,
-                        fontWeight = FontWeight.Normal,
-                        fontFamily = Poppins,
-                        textAlign = TextAlign.Justify
-                    )
+                            .height(56.dp)
+                    ) {
+                        Text(
+                            text = "Continuar",
+                            fontSize = 16.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = Poppins
+                        )
+                    }
                 }
             }
+        ) { padding ->
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            Button(
-                onClick = onStartExperiment,
-                shape = RoundedCornerShape(12.dp),
-                elevation = ButtonDefaults.buttonElevation(
-                    defaultElevation = 4.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF5061C7),
-                    contentColor = Color(0xFFAECFFF)
-                ),
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .height(56.dp)
+                    .fillMaxSize()
+                    .padding(padding)
             ) {
+                Spacer(modifier = Modifier.height(70.dp))
+
                 Text(
-                    text = ("Continuar"),
-                    fontSize = 16.sp,
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold,
+                    text = "Recomendaciones\nPrevias",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    textAlign = TextAlign.Center,
+                    fontSize = 30.sp,
+                    lineHeight = 42.sp,
+                    fontWeight = FontWeight.Bold,
                     fontFamily = Poppins,
-                    textAlign = TextAlign.Justify
+                    color = Color.Black
                 )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    color = Color.White.copy(alpha = 0.55f),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.exclamationicon),
+                            contentDescription = "Help icon",
+                            modifier = Modifier.size(64.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 350.dp)
+                                .verticalScroll(scrollState)
+                        ) {
+                            Text(
+                                text = tipsText,
+                                fontSize = 16.sp,
+                                color = Color.Black,
+                                fontWeight = FontWeight.Normal,
+                                fontFamily = Poppins,
+                                textAlign = TextAlign.Justify
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
     }

@@ -118,7 +118,7 @@ private fun CameraPermissionContent(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.pl_module_background),
+            painter = painterResource(id = R.drawable.pl_subbackground),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()

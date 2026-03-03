@@ -36,7 +36,7 @@ fun HomeScreen(
 
         // Background
         Image(
-            painter = painterResource(id = R.drawable.pl_homescreen),
+            painter = painterResource(id = R.drawable.pl_background),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -46,7 +46,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 25.dp, top = 320.dp),
+                .padding(start = 25.dp, top = 310.dp),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.Start
         ) {
@@ -86,7 +86,7 @@ private fun HomeMenuButton(
         onClick = onClick,
         modifier = Modifier
             .padding(vertical = 18.dp)
-            .width(185.dp),
+            .width(180.dp),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
@@ -96,7 +96,7 @@ private fun HomeMenuButton(
     ) {
         Text(
             text = text,
-            fontSize = 22.sp,
+            fontSize = 18.sp,
             fontFamily = Poppins,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
