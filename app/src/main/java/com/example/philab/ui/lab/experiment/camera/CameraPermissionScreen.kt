@@ -35,6 +35,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.example.philab.R
 import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
+import com.example.philab.ui.theme.AppDrawables
 
 @Composable
 fun CameraPermissionScreen(
@@ -118,7 +119,7 @@ private fun CameraPermissionContent(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.pl_subbackground),
+            painter = painterResource(id = AppDrawables.SUB_BACKGROUND),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.example.philab.R
 import com.example.philab.data.repository.TipsRepository
 import com.example.philab.ui.theme.Poppins
+import com.example.philab.ui.theme.AppDrawables
 
 @Composable
 fun PreExperimentTipsScreen(
@@ -40,7 +41,7 @@ fun PreExperimentTipsScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.pl_subbackground),
+            painter = painterResource(id = AppDrawables.SUB_BACKGROUND),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()

@@ -35,6 +35,7 @@ import com.example.philab.data.repository.ArticleRepository
 import com.example.philab.domain.model.Article
 import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
+import com.example.philab.ui.theme.AppDrawables
 
 @Composable
 fun TheoryModuleScreen(
@@ -50,7 +51,7 @@ fun TheoryModuleScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.pl_subbackground),
+            painter = painterResource(id = AppDrawables.SUB_BACKGROUND),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -199,7 +200,7 @@ private fun ArticleCoverImage(
     imageName: String
 ) {
     val context = LocalContext.current
-    val fallbackRes = R.drawable.pl_subbackground
+    val fallbackRes = AppDrawables.SUB_BACKGROUND
 
     val resId = remember(imageName) {
         val id = context.resources.getIdentifier(imageName, "drawable", context.packageName)

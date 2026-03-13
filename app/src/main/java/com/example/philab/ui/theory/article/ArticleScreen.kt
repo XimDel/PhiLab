@@ -29,6 +29,7 @@ import com.example.philab.R
 import com.example.philab.data.repository.ArticleRepository
 import com.example.philab.domain.model.Article
 import com.example.philab.ui.theme.Poppins
+import com.example.philab.ui.theme.AppDrawables
 
 @Composable
 fun ArticleScreen(
@@ -49,7 +50,7 @@ fun ArticleScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter = painterResource(id = R.drawable.pl_subbackground),
+            painter = painterResource(id = AppDrawables.SUB_BACKGROUND),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
