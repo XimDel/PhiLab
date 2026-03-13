@@ -17,40 +17,30 @@ import java.io.OutputStream
 
 object ArucoGenerator {
 
-    /**
-     * Generates an ArUco marker as a Bitmap.
-     *
-     * The total grid is 6x6 (1-cell black border + 4x4 data cells).
-     * [pixelSize] is the total output size in pixels.
-     */
     fun generateBitmap(markerId: Int, pixelSize: Int): Bitmap {
         val bits = ArucoDictionary.getBits(markerId)
-        val gridSize = 6 // 1 border + 4 data + 1 border
+        val gridSize = 6
         val cellSize = pixelSize.toFloat() / gridSize
 
         val bitmap = Bitmap.createBitmap(pixelSize, pixelSize, Bitmap.Config.RGB_565)
         val canvas = Canvas(bitmap)
         val paint = Paint().apply { isAntiAlias = false }
 
-        // Fill white background
         canvas.drawColor(Color.WHITE)
 
-        // Draw full black border (outer ring)
         paint.color = Color.BLACK
         canvas.drawRect(0f, 0f, pixelSize.toFloat(), pixelSize.toFloat(), paint)
 
-        // Draw white interior (4x4 area + inner border = 4x4 cells starting at cell 1,1)
         paint.color = Color.WHITE
         canvas.drawRect(cellSize, cellSize, cellSize * 5, cellSize * 5, paint)
 
-        // Draw 4x4 data bits
         for (row in 0..3) {
             for (col in 0..3) {
                 val bit = bits[row][col]
                 paint.color = if (bit == 1) Color.BLACK else Color.WHITE
-                val left = (col + 1) * cellSize
-                val top = (row + 1) * cellSize
-                val right = left + cellSize
+                val left   = (col + 1) * cellSize
+                val top    = (row + 1) * cellSize
+                val right  = left + cellSize
                 val bottom = top + cellSize
                 canvas.drawRect(left, top, right, bottom, paint)
             }
@@ -59,16 +49,6 @@ object ArucoGenerator {
         return bitmap
     }
 
-    /**
-     * Exports a PDF file with the marker at the specified physical size.
-     *
-     * [sizeInCm] is the physical size of the printed marker.
-     * PDF uses 72 points per inch; 1 inch = 2.54 cm.
-     * So 1 cm = 72 / 2.54 ≈ 28.346 points.
-     *
-     * The PDF page has a small margin around the marker for easy cutting.
-     * Returns the URI string or null on failure.
-     */
     fun exportPdf(
         context: Context,
         markerId: Int,
@@ -77,28 +57,26 @@ object ArucoGenerator {
     ) {
         try {
             val pointsPerCm = 72f / 2.54f
-            val markerPts = (sizeInCm * pointsPerCm).toInt()
-            val marginPts = (1.5f * pointsPerCm).toInt() // 1.5 cm margin
+            val markerPts   = (sizeInCm * pointsPerCm).toInt()
+            val marginPts   = (1.5f * pointsPerCm).toInt()
 
-            val pageWidth = markerPts + marginPts * 2
-            val pageHeight = markerPts + marginPts * 2
+            val pageWidth  = markerPts + marginPts * 2
+            val pageHeight = markerPts + marginPts * 2 + (pointsPerCm * 3.5f).toInt()
 
-            // Generate high-res bitmap (at least 300 DPI for printing)
-            val dpi = 300
-            val bitmapSize = (sizeInCm / 2.54f * dpi).toInt().coerceAtLeast(200)
+            val bitmapSize = (sizeInCm / 2.54f * 300).toInt().coerceAtLeast(200)
             val bitmap = generateBitmap(markerId, bitmapSize)
 
             val pdfDocument = PdfDocument()
-            val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
-            val page = pdfDocument.startPage(pageInfo)
-            val canvas = page.canvas
-            val paint = Paint()
+            val pageInfo    = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
+            val page        = pdfDocument.startPage(pageInfo)
+            val canvas      = page.canvas
+            val paint       = Paint()
 
             // White background
             paint.color = Color.WHITE
             canvas.drawRect(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat(), paint)
 
-            // Draw the marker centered with margin
+            // Marker
             val dst = android.graphics.RectF(
                 marginPts.toFloat(),
                 marginPts.toFloat(),
@@ -108,12 +86,45 @@ object ArucoGenerator {
             canvas.drawBitmap(bitmap, null, dst, null)
 
             // Label: ID and size
-            paint.color = Color.DKGRAY
-            paint.textSize = (0.3f * pointsPerCm) // 0.3 cm font
             paint.isAntiAlias = true
-            val label = "ArUco DICT_4X4_50 | ID: $markerId | ${sizeInCm}×${sizeInCm} cm"
-            val labelY = (marginPts + markerPts + 0.6f * pointsPerCm)
-            canvas.drawText(label, marginPts.toFloat(), labelY, paint)
+            paint.textSize = (sizeInCm * 0.06f * pointsPerCm).coerceIn(6f, 14f)
+            paint.color = Color.DKGRAY
+            val labelY = marginPts + markerPts + paint.textSize * 1.5f
+            canvas.drawText(
+                "ArUco DICT_4X4_50 | ID: $markerId | ${sizeInCm}x${sizeInCm} cm",
+                marginPts.toFloat(), labelY, paint
+            )
+
+            // Print warning
+            val lineSpacing      = paint.textSize * 1.6f
+            val warningTitleSize = paint.textSize * 0.85f
+            val warningBodySize  = warningTitleSize * 0.92f
+
+            paint.textSize = warningTitleSize
+            paint.color = Color.DKGRAY
+            canvas.drawText(
+                "Al imprimir ten en cuenta:",
+                marginPts.toFloat(), labelY + lineSpacing * 1.4f, paint
+            )
+
+            paint.textSize = warningBodySize
+            paint.color = Color.DKGRAY
+            canvas.drawText(
+                "Ir a más ajustes / Escala:",
+                marginPts.toFloat(), labelY + lineSpacing * 2.4f, paint
+            )
+            canvas.drawText(
+                "- No usar opción: Ajustar al papel",
+                marginPts.toFloat(), labelY + lineSpacing * 3.3f, paint
+            )
+            canvas.drawText(
+                "- No usar opción: Ajustar al área imprimible",
+                marginPts.toFloat(), labelY + lineSpacing * 4.2f, paint
+            )
+            canvas.drawText(
+                "- Usar: Personalizada (100%)",
+                marginPts.toFloat(), labelY + lineSpacing * 5.1f, paint
+            )
 
             pdfDocument.finishPage(page)
             bitmap.recycle()
@@ -121,7 +132,6 @@ object ArucoGenerator {
             val fileName = "aruco_4x4_50_id${markerId}_${sizeInCm}cm.pdf"
 
             val outputStream: OutputStream? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10+ — save to Downloads via MediaStore
                 val contentValues = ContentValues().apply {
                     put(MediaStore.Downloads.DISPLAY_NAME, fileName)
                     put(MediaStore.Downloads.MIME_TYPE, "application/pdf")
@@ -133,7 +143,6 @@ object ArucoGenerator {
                 )
                 uri?.let { context.contentResolver.openOutputStream(it) }
             } else {
-                // Android 9 and below
                 val downloadsDir = Environment.getExternalStoragePublicDirectory(
                     Environment.DIRECTORY_DOWNLOADS
                 )

@@ -278,7 +278,7 @@ fun ArucoGeneratorScreen(
                                     coroutineScope.launch {
                                         isSaving = false
                                         val msg = if (success)
-                                            "✓ Guardado en Descargas: $fileName"
+                                            "Guardado en Descargas: $fileName"
                                         else
                                             "Error al guardar el archivo."
                                         snackbarHostState.showSnackbar(msg)
