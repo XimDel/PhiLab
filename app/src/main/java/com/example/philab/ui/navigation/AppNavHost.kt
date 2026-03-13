@@ -14,6 +14,7 @@ import com.example.philab.ui.lab.experiment.tips.PreExperimentTipsScreen
 import com.example.philab.ui.lab.menu.LabModuleScreen
 import com.example.philab.ui.theory.article.ArticleScreen
 import com.example.philab.ui.theory.module.TheoryModuleScreen
+import com.example.philab.ui.lab.arucogenerator.ArucoGeneratorScreen
 
 @Composable
 fun AppNavHost() {
@@ -57,9 +58,7 @@ fun AppNavHost() {
                 onHowItWorks = {
                     // TODO
                 },
-                onOpenArucoGenerator = {
-                    // TODO
-                }
+                onOpenArucoGenerator = { navController.navigate(Routes.ARUCO_GENERATOR) }
             )
         }
 
@@ -83,6 +82,12 @@ fun AppNavHost() {
 
         composable(Routes.CAMERA) {
             CameraScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.ARUCO_GENERATOR) {
+            ArucoGeneratorScreen(
                 onBack = { navController.popBackStack() }
             )
         }

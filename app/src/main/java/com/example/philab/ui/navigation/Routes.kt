@@ -12,6 +12,7 @@ object Routes {
     const val LAB_MODULE = "lab_module"
 
     const val TIPS_MODULE = "tips_module"
+    const val ARUCO_GENERATOR = "aruco_generator"
 
     const val ARTICLE_ROUTE = "article/{articleId}"
 
