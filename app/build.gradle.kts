@@ -15,6 +15,10 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters += setOf("arm64-v8a")
+        }
     }
 
     buildTypes {
@@ -32,18 +36,34 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     kotlinOptions { jvmTarget = "11" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        mlModelBinding = true
+    }
 }
 
 dependencies {
+    // CameraX
     val cameraxVersion = "1.5.3"
-
     implementation("androidx.camera:camera-core:$cameraxVersion")
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
-    implementation ("androidx.compose.material:material-icons-extended")
 
+    // TFLite
+    val tfliteVersion = "0.4.4"
+    val tfliteCoreVersion = "2.14.0"
+    implementation("org.tensorflow:tensorflow-lite-task-vision:$tfliteVersion")
+    implementation("org.tensorflow:tensorflow-lite:$tfliteCoreVersion")
+    implementation("org.tensorflow:tensorflow-lite-support:$tfliteVersion")
+    implementation("org.tensorflow:tensorflow-lite-gpu:$tfliteCoreVersion")
+    implementation("org.tensorflow:tensorflow-lite-gpu-api:$tfliteCoreVersion")
+
+    // OpenCV
+    implementation(project(":opencv"))
+
+    // UI / Compose
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -58,8 +78,10 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
 
+    // Gson
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // Tests
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

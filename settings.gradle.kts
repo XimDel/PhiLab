@@ -20,5 +20,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "PhiLab"
-include(":app")
+include(":app", ":opencv")
  
