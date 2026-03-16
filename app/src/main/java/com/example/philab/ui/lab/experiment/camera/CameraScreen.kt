@@ -5,6 +5,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.HelpOutline
@@ -19,6 +20,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -28,7 +30,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.philab.core.calibration.CalibrationState
 import com.example.philab.core.detection.DetectorManager
 import com.example.philab.ui.camera.CameraController
-import com.example.philab.ui.theme.PhiLabTheme
 
 @Composable
 fun CameraScreen(
@@ -104,7 +105,6 @@ fun CameraScreen(
                 .onSizeChanged { viewModel.updatePreviewSize(it) }
         )
 
-        // Overlay de detecciones — captura el toque para seleccionar objeto
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -135,7 +135,9 @@ fun CameraScreen(
             elapsedMs = viewModel.elapsedMs,
             totalFrames = viewModel.totalFrames,
             detectorStatus = viewModel.detectorStatus,
-            livePointCount = viewModel.livePointCount
+            livePointCount = viewModel.livePointCount,
+            isRunning = viewModel.isRunning,
+            isCameraActive = viewModel.isCameraActive
         )
 
         CameraOverlay(
@@ -162,7 +164,6 @@ fun CameraScreen(
             calibrationState = viewModel.calibrationState
         )
 
-        // Dialog de resumen al detener
         viewModel.experimentResults?.let { results ->
             SessionSummaryDialog(
                 results = results,
@@ -175,25 +176,42 @@ fun CameraScreen(
 
 @Composable
 private fun BoxScope.CameraStatsOverlay(
-    fps: Double, elapsedMs: Long, totalFrames: Long,
+    fps: Double,
+    elapsedMs: Long,
+    totalFrames: Long,
     detectorStatus: String,
-    livePointCount: Int
+    livePointCount: Int,
+    isRunning: Boolean,
+    isCameraActive: Boolean
 ) {
     Column(
-        modifier = Modifier.align(Alignment.TopEnd).padding(top = 30.dp, end = 14.dp),
+        modifier = Modifier
+            .align(Alignment.TopEnd)
+            .padding(top = 30.dp, end = 14.dp)
+            .background(
+                color = Color.Black.copy(alpha = 0.55f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.End
     ) {
-        Text("FPS: ${fps.toInt()}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Text("Tiempo: ${formatElapsed(elapsedMs)}", color = Color.White, fontSize = 13.sp)
-        Text("Frames: $totalFrames", color = Color.White, fontSize = 13.sp)
         Text(detectorStatus, color = Color.Yellow, fontSize = 13.sp)
-        if (livePointCount > 0) {
-            Text(
-                text = "Puntos: $livePointCount",
-                color = Color.Cyan,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
-            )
+
+        if (isCameraActive) {
+            Text("FPS: ${fps.toInt()}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Frames: $totalFrames", color = Color.White, fontSize = 13.sp)
+        }
+
+        if (isRunning) {
+            Text("Tiempo: ${formatElapsed(elapsedMs)}", color = Color.White, fontSize = 13.sp)
+            if (livePointCount > 0) {
+                Text(
+                    text = "Puntos: $livePointCount",
+                    color = Color.Cyan,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
@@ -223,13 +241,6 @@ private fun CameraOverlay(
     calibrationState: CalibrationState
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier.align(Alignment.TopStart).padding(top = 30.dp, start = 8.dp)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White)
-        }
 
         Column(
             modifier = Modifier
@@ -289,14 +300,12 @@ private fun CameraOverlay(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(bottom = 8.dp)
                 ) {
-                    // Chip ArUco
                     val arucoOk = calibrationState is CalibrationState.Calibrated
                     StatusChip(
                         label = if (arucoOk) "✓ ArUco" else "✗ ArUco",
                         active = arucoOk
                     )
 
-                    // Chip objeto seleccionado
                     val objOk = selectedObject != null
                     StatusChip(
                         label = if (objOk) "★ ${selectedObject!!.label} ×" else "Toca un objeto",
@@ -310,7 +319,22 @@ private fun CameraOverlay(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // configuración
+                // Botón volver
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(Color(0x88000000), shape = androidx.compose.foundation.shape.CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // Botón configuración
                 IconButton(
                     onClick = onToggleConfig,
                     modifier = Modifier
@@ -325,7 +349,7 @@ private fun CameraOverlay(
                     )
                 }
 
-                // Calibrar|Detectar
+                // Calibrar | Detectar
                 Button(
                     onClick = onToggleCamera,
                     enabled = !isRunning,
@@ -443,4 +467,38 @@ private fun formatElapsed(ms: Long): String {
     val seconds = (ms / 1000) % 60
     val milliseconds = (ms % 1000) / 10
     return "%02d:%02d:%02d".format(minutes, seconds, milliseconds)
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF000000, name = "Config abierta - cámara inactiva")
+@Composable
+private fun CameraOverlayConfigOpenPreview() {
+    MaterialTheme {
+        CameraOverlay(
+            isCameraActive = false,
+            isRunning = false,
+            models = listOf(
+                ModelOption("ssd_mobilenet_v1.tflite", "SSD MobileNet v1 (300×300)"),
+                ModelOption("efficientdet_lite0.tflite", "EfficientDet Lite0 (320×320)"),
+                ModelOption("efficientdet_lite4.tflite", "EfficientDet Lite4 (640×640)")
+            ),
+            selectedModel = ModelOption("efficientdet_lite0.tflite", "EfficientDet Lite0 (320×320)"),
+            onSelectModel = {},
+            showConfig = true,
+            onToggleConfig = {},
+            sensitivity = Sensitivity.ALTA,
+            onSensitivityChange = {},
+            maxPerFrame = 3,
+            onMaxPerFrameChange = {},
+            maxPerClass = 5,
+            onMaxPerClassChange = {},
+            markerSizeCm = 7.5f,
+            onMarkerSizeCmChange = {},
+            onBack = {},
+            onToggleCamera = {},
+            onStartStop = {},
+            selectedObject = null,
+            onClearSelection = {},
+            calibrationState = CalibrationState.Idle
+        )
+    }
 }

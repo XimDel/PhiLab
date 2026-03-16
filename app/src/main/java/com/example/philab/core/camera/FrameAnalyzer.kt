@@ -124,7 +124,7 @@ class FrameAnalyzer(
                 lastKnownCenter = null
                 tracks.clear()
                 resetVelocityState()
-                emitIfChanged(emptyList(), null, CalibrationState.Idle, "Listo")
+                emitIfChanged(emptyList(), null, CalibrationState.Idle, "Modelo de detección listo")
                 onTrackedDetection(null)
                 return
             }
@@ -346,7 +346,7 @@ class FrameAnalyzer(
 
                 emitIfChanged(
                     stableWithSelection, measurement, lastCalibrationState,
-                    "OK (Obj. detectados: ${stable.size})"
+                    "Obj. detectados: ${stable.size}"
                 )
 
             } catch (e: Exception) {

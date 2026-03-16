@@ -95,7 +95,7 @@ fun MeasurementOverlay(
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 80.dp, start = 14.dp)
+                .padding(top = 30.dp, start = 14.dp)
                 .wrapContentWidth()
                 .background(
                     color = Color.Black.copy(alpha = 0.55f),
