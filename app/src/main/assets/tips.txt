@@ -1,10 +1,13 @@
-1. Coloque el objeto sobre una superficie plana y estable.
-2. Asegúrese de que haya buena iluminación.
-3. Evite sombras que puedan interferir con la detección.
-4. Mantenga el teléfono firme durante la grabación.
-5. Verifique que el objeto esté completamente visible.
-6. Calibre correctamente la escala antes de iniciar.
-7. Evite movimientos bruscos del dispositivo.
-8. Repita el experimento si observa errores de medición.
-9. Revise los datos obtenidos antes de exportarlos.
-10. Imprima y ubique el ArUco antes de iniciar la medición.
+1. Seleccione el modelo de detección desde el ícono de Configuración: modelos más grandes son más precisos pero reducen los FPS.
+2. Imprima o dibuje un marcador ArUco (use el generador en el módulo de laboratorio) y ubíquelo en la escena antes de iniciar.
+3. Mida el tamaño real de su marcador ArUco e ingréselo en Configuración para una calibración correcta.
+4. Calibre la escala antes de iniciar — espere a que el chip ArUco aparezca en verde.
+5. Toque el objeto detectado en pantalla para seleccionarlo antes de grabar.
+6. Coloque el objeto sobre una superficie plana y estable.
+7. Asegúrese de que haya buena iluminación y evite sombras sobre el objeto.
+8. Mantenga el teléfono firme y perpendicular a la escena durante la grabación.
+9. Verifique que el objeto esté completamente visible en todo momento.
+10. Evite movimientos bruscos del dispositivo.
+11. Si los FPS son bajos, seleccione un modelo más pequeño en Configuración.
+12. Repita el experimento si observa errores de medición.
+13. Revise los datos obtenidos antes de exportarlos.

@@ -60,24 +60,24 @@ class FrameAnalyzer(
     private var arucoFrameCounter = 0
     private var lastCalibrationState: CalibrationState = CalibrationState.Searching
 
-    // ── IoU tracking ──────────────────────────────────────────────────────────
+    // IoU tracking
     private var lastTrackedBox: UiDetection? = null
     private val iouThreshold = 0.25f
     private var lastKnownCenter: Pair<Float, Float>? = null
 
-    // ── Predicción de velocidad ───────────────────────────────────────────────
+    // Predicción de velocidad
     private var velX = 0f
     private var velY = 0f
     private val velAlpha = 0.4f
     private var framesMissed = 0
     private val maxFramesMissed = 8
 
-    // ── EMA sobre el centroide grabado ────────────────────────────────────────
+    // EMA sobre el centroide grabado
     private val emaAlpha = 0.35f
     private var emaX: Float? = null
     private var emaY: Float? = null
 
-    // ── Protección contra saltos grandes ─────────────────────────────────────
+    //  Protección contra saltos grandes
     private val maxJumpPx = 120f
 
     private var lastDetections: List<UiDetection> = emptyList()
@@ -227,7 +227,7 @@ class FrameAnalyzer(
                     resetVelocityState()
                 }
 
-                // ── IoU + predicción de velocidad ─────────────────────────────
+                //  IoU + predicción de velocidad
                 val trackedThisFrame: UiDetection? = when {
                     selectedCenter == null -> {
                         lastTrackedBox = null
@@ -293,7 +293,7 @@ class FrameAnalyzer(
 
                 onTrackedDetection(trackedThisFrame?.copy(isSelected = true))
 
-                // ── ArUco throttling ──────────────────────────────────────────
+                // ArUco throttling
                 arucoFrameCounter++
                 if (arucoFrameCounter % arucoEveryNFrames == 0) {
                     try {

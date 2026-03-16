@@ -58,7 +58,7 @@ fun SessionSummaryDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                // ── Header ────────────────────────────────────────────────────
+                // Header
                 Box(
                     modifier = Modifier
                         .size(56.dp)
@@ -105,7 +105,7 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(20.dp))
 
-                // ── Métricas ──────────────────────────────────────────────────
+                // Métricas
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -161,7 +161,7 @@ fun SessionSummaryDialog(
                     )
                 }
 
-                // ── Advertencia sin calibración ───────────────────────────────
+                // Advertencia sin calibración
                 if (!results.isCalibrated) {
                     Spacer(Modifier.height(12.dp))
                     Row(
@@ -189,7 +189,7 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(20.dp))
 
-                // ── Acciones ──────────────────────────────────────────────────
+                // Acciones
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)

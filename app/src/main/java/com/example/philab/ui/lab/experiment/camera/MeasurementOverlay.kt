@@ -29,8 +29,6 @@ fun MeasurementOverlay(
     viewSize: IntSize,
     modifier: Modifier = Modifier
 ) {
-    // Cuando está Idle no renderizamos nada — Box vacío para que Compose
-    // limpie correctamente el árbol de composición anterior
     if (calibrationState is CalibrationState.Idle) {
         Box(modifier = modifier.fillMaxSize()) {}
         return
@@ -40,7 +38,6 @@ fun MeasurementOverlay(
 
     Box(modifier = modifier.fillMaxSize()) {
 
-        // Dibujar el contorno del marcador ArUco solo cuando está calibrado
         if (
             calibrationState is CalibrationState.Calibrated &&
             calibrationState.corners.size == 4 &&
