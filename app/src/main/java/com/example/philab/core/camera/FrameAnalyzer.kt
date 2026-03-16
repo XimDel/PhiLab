@@ -344,9 +344,10 @@ class FrameAnalyzer(
                     }
                 }
 
+                val status = if (isRecording()) "Grabando" else "Obj. detectados: ${stable.size}"
                 emitIfChanged(
                     stableWithSelection, measurement, lastCalibrationState,
-                    "Obj. detectados: ${stable.size}"
+                    status
                 )
 
             } catch (e: Exception) {

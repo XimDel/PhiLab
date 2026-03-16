@@ -1,17 +1,37 @@
 package com.example.philab.ui.lab.experiment.camera
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.philab.domain.experiment.ExperimentResults
+
+private val BgCard        = Color(0xFFFFFFFF)
+private val BgRow         = Color(0xFFF7F7FA)
+private val AccentGreen   = Color(0xFF1D9E75)
+private val AccentBlue    = Color(0xFF2196F3)
+private val AccentOrange  = Color(0xFFFF9800)
+private val AccentPurple  = Color(0xFF9C27B0)
+private val AccentRed     = Color(0xFFE53935)
+private val AccentTeal    = Color(0xFF00897B)
+private val TextPrimary   = Color(0xFF1A1A2E)
+private val TextSecondary = Color(0xFF7A7A8C)
+private val DividerColor  = Color(0xFFEEEEF2)
 
 @Composable
 fun SessionSummaryDialog(
@@ -21,108 +41,184 @@ fun SessionSummaryDialog(
 ) {
     Dialog(onDismissRequest = {}) {
         Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E)),
-            modifier = Modifier.fillMaxWidth()
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = BgCard),
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 24.dp,
+                    shape = RoundedCornerShape(24.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.08f),
+                    spotColor = Color.Black.copy(alpha = 0.12f)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                // Título
+                // ── Header ────────────────────────────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(AccentGreen.copy(alpha = 0.2f), Color.Transparent)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = AccentGreen,
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+
                 Text(
                     text = "Sesión finalizada",
-                    color = Color.White,
-                    fontSize = 18.sp,
+                    color = TextPrimary,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
 
-                Text(
-                    text = results.selectedLabel,
-                    color = Color(0xFFAAAAAA),
-                    fontSize = 13.sp
-                )
+                Spacer(Modifier.height(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(AccentGreen.copy(alpha = 0.1f))
+                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = results.selectedLabel,
+                        color = AccentGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
 
                 Spacer(Modifier.height(20.dp))
-                Divider(color = Color(0xFF333355))
-                Spacer(Modifier.height(16.dp))
 
-                // Métricas principales
-                SummaryRow(
-                    label = "Duración",
-                    value = formatDuration(results.durationMs),
-                    unit = ""
-                )
-                SummaryRow(
-                    label = "Muestras",
-                    value = "${results.sampleCount}",
-                    unit = "pts  ·  ${"%.1f".format(results.sampleRateHz)} Hz"
-                )
-                SummaryRow(
-                    label = "Distancia",
-                    value = "%.2f".format(results.totalDistanceCm),
-                    unit = results.unit
-                )
-                SummaryRow(
-                    label = "Desplazamiento",
-                    value = "%.2f".format(results.displacementCm),
-                    unit = results.unit
-                )
-                SummaryRow(
-                    label = "Velocidad media",
-                    value = "%.2f".format(results.avgSpeedCmS),
-                    unit = "${results.unit}/s"
-                )
-                SummaryRow(
-                    label = "Aceleración media",
-                    value = "%.2f".format(results.avgAccelCmS2),
-                    unit = "${results.unit}/s²"
-                )
+                // ── Métricas ──────────────────────────────────────────────────
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(BgRow)
+                ) {
+                    MetricRow(
+                        icon = Icons.Filled.Timer,
+                        iconTint = AccentBlue,
+                        label = "Duración",
+                        value = formatDuration(results.durationMs),
+                        unit = ""
+                    )
+                    RowDivider()
+                    MetricRow(
+                        icon = Icons.Filled.DataArray,
+                        iconTint = AccentPurple,
+                        label = "Muestras",
+                        value = "${results.sampleCount}",
+                        unit = "pts · ${"%.1f".format(results.sampleRateHz)} Hz"
+                    )
+                    RowDivider()
+                    MetricRow(
+                        icon = Icons.Filled.Straighten,
+                        iconTint = AccentOrange,
+                        label = "Distancia",
+                        value = "%.2f".format(results.totalDistanceCm),
+                        unit = results.unit
+                    )
+                    RowDivider()
+                    MetricRow(
+                        icon = Icons.Filled.ArrowForward,
+                        iconTint = AccentTeal,
+                        label = "Desplazamiento",
+                        value = "%.2f".format(results.displacementCm),
+                        unit = results.unit
+                    )
+                    RowDivider()
+                    MetricRow(
+                        icon = Icons.Filled.Speed,
+                        iconTint = AccentRed,
+                        label = "Velocidad media",
+                        value = "%.2f".format(results.avgSpeedCmS),
+                        unit = "${results.unit}/s"
+                    )
+                    RowDivider()
+                    MetricRow(
+                        icon = Icons.Filled.TrendingUp,
+                        iconTint = AccentGreen,
+                        label = "Aceleración media",
+                        value = "%.2f".format(results.avgAccelCmS2),
+                        unit = "${results.unit}/s²"
+                    )
+                }
 
-                // Advertencia si no había calibración
+                // ── Advertencia sin calibración ───────────────────────────────
                 if (!results.isCalibrated) {
                     Spacer(Modifier.height(12.dp))
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF3A2A00)),
-                        shape = RoundedCornerShape(8.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFFFF8E1))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Filled.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFF9A825),
+                            modifier = Modifier.size(16.dp)
+                        )
                         Text(
-                            text = "⚠ Sin calibración ArUco — valores en píxeles",
-                            color = Color(0xFFFFCC44),
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            text = "Sin calibración ArUco — valores en píxeles",
+                            color = Color(0xFF795548),
+                            fontSize = 11.sp
                         )
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
 
-                // Acciones
+                // ── Acciones ──────────────────────────────────────────────────
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Reiniciar
                     OutlinedButton(
                         onClick = onRestart,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFFAAAAAA)
-                        )
+                            contentColor = TextSecondary
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
                     ) {
-                        Text("Reiniciar")
+                        Text("Reiniciar", fontWeight = FontWeight.Medium)
                     }
 
-                    // Guardar
                     Button(
                         onClick = onSave,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1D9E75)
+                            containerColor = AccentGreen
                         )
                     ) {
-                        Text("Guardar", fontWeight = FontWeight.Bold)
+                        Text("Guardar", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -131,35 +227,71 @@ fun SessionSummaryDialog(
 }
 
 @Composable
-private fun SummaryRow(label: String, value: String, unit: String) {
+private fun MetricRow(
+    icon: ImageVector,
+    iconTint: Color,
+    label: String,
+    value: String,
+    unit: String
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(iconTint.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
         Text(
             text = label,
-            color = Color(0xFFAAAAAA),
-            fontSize = 13.sp
+            color = TextSecondary,
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1f)
         )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Text(
                 text = value,
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
             if (unit.isNotEmpty()) {
                 Text(
                     text = unit,
-                    color = Color(0xFF888888),
+                    color = TextSecondary,
                     fontSize = 11.sp
                 )
             }
         }
     }
+}
+
+@Composable
+private fun RowDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 14.dp),
+        thickness = 0.5.dp,
+        color = DividerColor
+    )
 }
 
 private fun formatDuration(ms: Long): String {

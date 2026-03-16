@@ -105,8 +105,15 @@ fun MeasurementOverlay(
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            lines.forEach { line ->
-                Text(text = line, color = Color.White, fontSize = 12.sp)
+            lines.forEachIndexed { index, line ->
+                val color = when {
+                    calibrationState is CalibrationState.Calibrated && index == 0 -> Color(0xFF26D9A0)
+                    calibrationState is CalibrationState.Searching  && index == 0 -> Color(0xFFFFB74D)
+                    calibrationState is CalibrationState.Error      && index == 0 -> Color(0xFFEF5350)
+                    calibrationState is CalibrationState.Error      && index == 1 -> Color(0xFFEF5350)
+                    else -> Color.White
+                }
+                Text(text = line, color = color, fontSize = 12.sp)
             }
         }
     }
@@ -118,7 +125,7 @@ private fun buildLines(calibrationState: CalibrationState): List<String> {
 
         is CalibrationState.Searching -> listOf(
             "ArUco: No detectado",
-            "Medición: En Pixeles"
+            "Medición en Pixeles"
         )
 
         is CalibrationState.Calibrated -> listOf(

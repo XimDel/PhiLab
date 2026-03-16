@@ -195,7 +195,17 @@ private fun BoxScope.CameraStatsOverlay(
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.End
     ) {
-        Text(detectorStatus, color = Color.Yellow, fontSize = 13.sp)
+        val statusColor = when {
+            detectorStatus.startsWith("Grabando")            -> Color(0xFF26D9A0)
+            detectorStatus.startsWith("Obj.")                -> Color(0xFF4FC3F7)
+            detectorStatus.startsWith("Buscando")            -> Color(0xFFFFB74D)
+            detectorStatus.startsWith("Detenido")            -> Color(0xFFFD5C59)
+            detectorStatus.startsWith("Cargando")            -> Color(0xFFCE93D8)
+            detectorStatus.startsWith("Modelo de detección") -> Color(0xFF8CE18E)
+            detectorStatus.startsWith("Modelo cargado")      -> Color(0xFFEDFF75)
+            else                                             -> Color.White
+        }
+        Text(detectorStatus, color = statusColor, fontSize = 13.sp)
 
         if (isCameraActive) {
             Text("FPS: ${fps.toInt()}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -253,7 +263,7 @@ private fun CameraOverlay(
             if (showConfig) {
                 Card(
                     modifier = Modifier.fillMaxWidth(0.92f),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xCC111111))
+                    colors = CardDefaults.cardColors(containerColor = Color(0x8C000000))
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         Spacer(Modifier.height(8.dp))
@@ -339,7 +349,7 @@ private fun CameraOverlay(
                     onClick = onToggleConfig,
                     modifier = Modifier
                         .size(48.dp)
-                        .background(Color(0x88000000), shape = androidx.compose.foundation.shape.CircleShape)
+                        .background(Color(0xFF289BAD), shape = androidx.compose.foundation.shape.CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Settings,
@@ -354,13 +364,13 @@ private fun CameraOverlay(
                     onClick = onToggleCamera,
                     enabled = !isRunning,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isCameraActive) Color(0xFF555577) else Color(0xFF1976D2),
+                        containerColor = if (isCameraActive) Color(0xFF555577) else Color(0xFF2B77CB),
                         disabledContainerColor = Color(0xFF797676)
                     )
                 ) {
                     Text(
                         text = if (isCameraActive) "Detener cámara" else "Calibrar | Detectar",
-                        fontSize = 13.sp
+                        fontSize = 12.sp
                     )
                 }
 
@@ -375,7 +385,7 @@ private fun CameraOverlay(
                 ) {
                     Text(
                         text = if (isRunning) "Detener" else "Iniciar",
-                        fontWeight = FontWeight.Bold
+                        fontSize = 12.sp
                     )
                 }
             }
