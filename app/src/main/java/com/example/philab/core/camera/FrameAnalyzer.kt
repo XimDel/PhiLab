@@ -31,16 +31,40 @@ import kotlin.math.min
 /**
  * FrameAnalyzer — tracking con Optical Flow + Kalman + TFLite async.
  *
- * Versión estable — la que producía FPS 23-24 con bbox siguiendo el objeto.
+ * Pipeline por frame:
+ *  1. Bitmap → grayMat
+ *  2. Aplicar pendingDetection → reinit OF SOLO si está inactivo
+ *  3. Gestionar cambio de selección de usuario
+ *  4. OpticalFlowTracker.update()
+ *     ├─ JustInitialized → usar bbox del init, esperar frame siguiente
+ *     ├─ Found  → BboxKalman.update() → EMA visual suave
+ *     └─ Lost   → BboxKalman.predict() → EMA visual
+ *                 └─ null + grace pasado → FALLBACK_DETECTOR → reinit OF
+ *  5. TFLite cada N frames async
+ *  6. ArUco cada N frames
  *
- * Fixes activos:
- *   - pendingDetection NO reinicia el OF si recentOfFoundCount > 0
- *     (elimina el salto visual cada ~600ms causado por reinits de TFLite)
- *   - arucoEveryNFrames 15  (era 7 — ArUco es caro en hilo principal)
- *   - detectionEveryNFrames 12 (era 8)
- *   - alphaOF 0.72, alphaKalman 0.45
- *   - recentOfFoundCount / framesSinceLastFound para salud del OF
- *   - recordPoint en todos los frames con tracking (~20+ Hz)
+ * FIXES vs versión original:
+ *
+ *  FIX 1 — pendingDetection NO interrumpe OF activo:
+ *    Antes: TFLite cada 8 frames reiniciaba OF+Kalman incondicionalmente.
+ *    Ahora: solo reinicia si !opticalFlowTracker.isActive().
+ *
+ *  FIX 2 — Grace period anti loop-de-muerte:
+ *    Cuando OF da Lost tras un init reciente (< GRACE_FRAMES), no se
+ *    dispara el fallback. El Kalman predice durante esos frames, dando
+ *    tiempo al OF para estabilizarse.
+ *    Sin esto: Lost→Fallback→init→JustInit→Lost→Fallback→... ∞
+ *
+ *  FIX 3 — Fallback NO hace bboxKalman.reset():
+ *    Antes: reset() borraba el estado del Kalman antes de que recibiera
+ *    ninguna medición → predict() siempre null → siempre fallback → loop.
+ *    Ahora: el Kalman sigue corriendo durante el fallback.
+ *
+ *  FIX 4 — lastTrackedCenter desde bbox Kalman filtrado (no desde tap fijo).
+ *
+ *  FIX 5 — recordPoint en todos los frames con tracking activo (~20+ Hz).
+ *
+ *  FIX 6 — Debug muestra Grace: actual/max para diagnóstico.
  */
 class FrameAnalyzer(
     private val detectorProvider: () -> TfliteObjectDetector,
@@ -59,47 +83,44 @@ class FrameAnalyzer(
     private val maxPerFrameProvider: () -> Int,
     private val confirmFrames: Int = 2,
     private val dropFrames: Int = 3,
-    private val arucoEveryNFrames: Int = 15,
-    private val detectionEveryNFrames: Int = 12,
+    private val arucoEveryNFrames: Int = 7,
+    private val detectionEveryNFrames: Int = 8,
     private val selectedCenterProvider: () -> Pair<Float, Float>?,
     private val onTrackedDetection: (UiDetection?) -> Unit,
     private val sessionRecorder: SessionRecorder
 ) : ImageAnalysis.Analyzer {
 
     // ── FPS UI ───────────────────────────────────────────────────────────────
-    private var windowStartNs  = 0L
+    private var windowStartNs = 0L
     private var framesInWindow = 0
-    private var totalFrames    = 0L
-    private val windowNs       = 250_000_000L
+    private var totalFrames = 0L
+    private val windowNs = 250_000_000L
 
     // ── Bitmap reuse ─────────────────────────────────────────────────────────
     private var processor: ImageProcessor? = null
     private var lastCrop = -1
-    private var lastW    = -1
-    private var lastH    = -1
+    private var lastW = -1
+    private var lastH = -1
 
-    private var rgbaBitmap:    Bitmap? = null
+    private var rgbaBitmap: Bitmap? = null
     private var rotatedBitmap: Bitmap? = null
     private var rotatedCanvas: Canvas? = null
-    private val rotateMatrix           = Matrix()
-    private val reusableTensorImage    = TensorImage()
+    private val rotateMatrix = Matrix()
+    private val reusableTensorImage = TensorImage()
 
     // ── OpenCV Mats ───────────────────────────────────────────────────────────
-    private val rgbMat  by lazy { Mat() }
+    private val rgbMat by lazy { Mat() }
     private val grayMat by lazy { Mat() }
 
     // ── ArUco ────────────────────────────────────────────────────────────────
-    private val arucoDetector      by lazy { ArucoScaleDetector() }
+    private val arucoDetector by lazy { ArucoScaleDetector() }
     private val measurementManager = MeasurementManager()
-    private var arucoFrameCounter  = 0
+    private var arucoFrameCounter = 0
     private var lastCalibrationState: CalibrationState = CalibrationState.Searching
 
-    // ── Optical Flow + Kalman ─────────────────────────────────────────────────
+    // ── Optical Flow + Kalman ────────────────────────────────────────────────
     private val opticalFlowTracker by lazy { OpticalFlowTracker() }
-    private val bboxKalman         by lazy { BboxKalman() }
-
-    private var recentOfFoundCount     = 0
-    private var framesSinceLastOfFound = 0
+    private val bboxKalman by lazy { BboxKalman() }
 
     // ── TFLite async ─────────────────────────────────────────────────────────
     private val detectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -111,57 +132,57 @@ class FrameAnalyzer(
         val allDetections: List<UiDetection>
     )
 
-    @Volatile private var pendingDetection:    PendingDetection?   = null
-    @Volatile private var latestAllDetections: List<UiDetection>   = emptyList()
+    @Volatile private var pendingDetection: PendingDetection? = null
+    @Volatile private var latestAllDetections: List<UiDetection> = emptyList()
 
-    // ── Estado de tracking ────────────────────────────────────────────────────
-    private var lastKnownCenter:   Pair<Float, Float>? = null
+    // ── Estado de tracking ───────────────────────────────────────────────────
+    private var lastKnownCenter: Pair<Float, Float>? = null
     private var lastTrackedCenter: Pair<Float, Float>? = null
 
-    // ── EMA visual del bbox ───────────────────────────────────────────────────
-    private var smoothL = 0f; private var smoothT = 0f
-    private var smoothR = 0f; private var smoothB = 0f
+    // ── EMA visual del bbox ──────────────────────────────────────────────────
+    private var smoothL = 0f
+    private var smoothT = 0f
+    private var smoothR = 0f
+    private var smoothB = 0f
     private var smoothInit = false
 
-    private val alphaOF     = 0.72f
-    private val alphaKalman = 0.45f
+    private val alphaOF     = 0.85f
+    private val alphaKalman = 0.55f
     private var currentAlpha = alphaOF
 
-    // ── EMA centroide grabado ─────────────────────────────────────────────────
-    private val emaAlpha  = 0.5f
+    // ── EMA centroide grabado ────────────────────────────────────────────────
+    private val emaAlpha = 0.5f
     private var emaX: Float? = null
     private var emaY: Float? = null
     private val maxJumpPx = 150f
 
-    // ── Emit dedup ────────────────────────────────────────────────────────────
+    // ── Emit dedup ───────────────────────────────────────────────────────────
     private var lastEmitDetections: List<UiDetection> = emptyList()
-    private var lastMeasurement:    MeasurementResult? = null
-    private var lastStatus:         String = ""
+    private var lastMeasurement: MeasurementResult? = null
+    private var lastStatus: String = ""
 
-    // ── Debug ─────────────────────────────────────────────────────────────────
+    // ── Debug ────────────────────────────────────────────────────────────────
     private enum class TrackingSource { NONE, OPTICAL_FLOW, KALMAN, FALLBACK_DETECTOR, LOST }
 
-    private var ofUpdateCount               = 0
-    private var ofFoundCount                = 0
-    private var ofLostCount                 = 0
-    private var kalmanPredictCount          = 0
-    private var fallbackDetectionCount      = 0
+    private var ofUpdateCount = 0
+    private var ofFoundCount = 0
+    private var ofLostCount = 0
+    private var kalmanPredictCount = 0
+    private var fallbackDetectionCount = 0
     private var consecutiveKalmanOnlyFrames = 0
-    private var maxKalmanOnlyFrames         = 0
+    private var maxKalmanOnlyFrames = 0
 
     private var analyzerPerfWindowStartNs = 0L
-    private var analyzerPerfFrames        = 0
-    private var analyzerFps               = 0.0
-    private var lastFrameMs               = 0.0
+    private var analyzerPerfFrames = 0
+    private var analyzerFps = 0.0
+    private var lastFrameMs = 0.0
 
-    private var pointsThisSecond    = 0
-    private var pointsPerSecond     = 0
+    private var pointsThisSecond = 0
+    private var pointsPerSecond = 0
     private var pointsWindowStartNs = 0L
 
     private var lastTrackingSource = TrackingSource.NONE
-    private var lastTrackingDebug  = ""
-
-    // ─────────────────────────────────────────────────────────────────────────
+    private var lastTrackingDebug = ""
 
     override fun analyze(image: ImageProxy) {
         val frameStartNs = System.nanoTime()
@@ -173,25 +194,27 @@ class FrameAnalyzer(
 
             try {
                 val detector = detectorProvider()
-                val bitmap   = getBitmap(image)
-                val srcW     = bitmap.width
-                val srcH     = bitmap.height
+                val bitmap = getBitmap(image)
+                val srcW = bitmap.width
+                val srcH = bitmap.height
 
                 // 1) Bitmap → grayMat
                 Utils.bitmapToMat(bitmap, rgbMat)
                 Imgproc.cvtColor(rgbMat, grayMat, Imgproc.COLOR_RGBA2GRAY)
 
-                // 2) Aplicar pendingDetection — solo reinit OF si no está funcionando
+                // 2) Aplicar pendingDetection del hilo TFLite
+                // FIX 1: solo reiniciar OF si está inactivo
                 val pending = pendingDetection
                 if (pending != null) {
-                    pendingDetection    = null
+                    pendingDetection = null
                     latestAllDetections = pending.allDetections
-                    val ofIsWorking = opticalFlowTracker.isActive() && recentOfFoundCount > 0
-                    if (!ofIsWorking && !grayMat.empty()) {
+
+                    if (!opticalFlowTracker.isActive() && !grayMat.empty()) {
                         val cvBox = pending.detection.toCvRect(grayMat.cols(), grayMat.rows())
                         opticalFlowTracker.init(grayMat, cvBox)
                         bboxKalman.reset()
                     }
+                    // Si OF ya está activo: solo actualiza latestAllDetections para overlay
                 }
 
                 // 3) Gestionar cambio de selección del usuario
@@ -202,22 +225,21 @@ class FrameAnalyzer(
                         bboxKalman.reset()
                         smoothInit = false
                         emaX = null; emaY = null
-                        lastTrackedCenter      = null
-                        recentOfFoundCount     = 0; framesSinceLastOfFound = 0
+                        lastTrackedCenter = null
                     } else if (lastKnownCenter == null) {
                         opticalFlowTracker.reset()
                         bboxKalman.reset()
-                        lastTrackedCenter      = null
-                        recentOfFoundCount     = 0; framesSinceLastOfFound = 0
+                        lastTrackedCenter = null
                         val (tapX, tapY) = selectedCenter
                         val seed = latestAllDetections.minByOrNull { d ->
                             val cx = (d.left + d.right) / 2f
-                            val cy = (d.top  + d.bottom) / 2f
+                            val cy = (d.top + d.bottom) / 2f
                             (cx - tapX) * (cx - tapX) + (cy - tapY) * (cy - tapY)
                         }
                         if (seed != null && !grayMat.empty()) {
                             opticalFlowTracker.init(
-                                grayMat, seed.toCvRect(grayMat.cols(), grayMat.rows())
+                                grayMat,
+                                seed.toCvRect(grayMat.cols(), grayMat.rows())
                             )
                         }
                     }
@@ -228,15 +250,17 @@ class FrameAnalyzer(
                 var trackingSource = TrackingSource.NONE
 
                 val trackedThisFrame: UiDetection? = if (selectedCenter == null) {
-                    lastTrackedCenter = null; null
+                    lastTrackedCenter = null
+                    null
                 } else {
                     fun closestDetectionToTracked(): UiDetection? {
-                        val refX = lastTrackedCenter?.first  ?: selectedCenter.first
+                        val refX = lastTrackedCenter?.first ?: selectedCenter.first
                         val refY = lastTrackedCenter?.second ?: selectedCenter.second
                         return latestAllDetections.minByOrNull { d ->
                             val cx = (d.left + d.right) / 2f
-                            val cy = (d.top  + d.bottom) / 2f
-                            (cx - refX) * (cx - refX) + (cy - refY) * (cy - refY)
+                            val cy = (d.top + d.bottom) / 2f
+                            val dx = cx - refX; val dy = cy - refY
+                            dx * dx + dy * dy
                         }
                     }
 
@@ -250,16 +274,14 @@ class FrameAnalyzer(
                     when (ofResult) {
                         is OpticalFlowTracker.TrackResult.Found -> {
                             ofFoundCount++
-                            recentOfFoundCount++
-                            framesSinceLastOfFound      = 0
                             consecutiveKalmanOnlyFrames = 0
                             trackingSource = TrackingSource.OPTICAL_FLOW
-                            currentAlpha   = alphaOF
+                            currentAlpha = alphaOF
 
                             val filteredBox = bboxKalman.update(ofResult.bbox.toAndroidRect())
                             lastTrackedCenter = Pair(
                                 (filteredBox.left + filteredBox.right) / 2f,
-                                (filteredBox.top  + filteredBox.bottom) / 2f
+                                (filteredBox.top + filteredBox.bottom) / 2f
                             )
                             smoothBbox(
                                 filteredBox, srcW, srcH,
@@ -271,13 +293,13 @@ class FrameAnalyzer(
 
                         is OpticalFlowTracker.TrackResult.JustInitialized -> {
                             trackingSource = TrackingSource.OPTICAL_FLOW
-                            currentAlpha   = alphaOF
+                            currentAlpha = alphaOF
                             val ref = closestDetectionToTracked() ?: latestAllDetections.firstOrNull()
                             if (ref != null) {
                                 val box = ref.toAndroidRect(srcW, srcH)
                                 lastTrackedCenter = Pair(
                                     (box.left + box.right) / 2f,
-                                    (box.top  + box.bottom) / 2f
+                                    (box.top + box.bottom) / 2f
                                 )
                                 smoothBbox(box, srcW, srcH, ref)
                             } else {
@@ -288,47 +310,61 @@ class FrameAnalyzer(
 
                         is OpticalFlowTracker.TrackResult.Lost -> {
                             ofLostCount++
-                            framesSinceLastOfFound++
-                            if (framesSinceLastOfFound > 10) recentOfFoundCount = 0
-
                             val predicted = bboxKalman.predict()
                             if (predicted != null) {
                                 kalmanPredictCount++
                                 consecutiveKalmanOnlyFrames++
                                 maxKalmanOnlyFrames = maxOf(maxKalmanOnlyFrames, consecutiveKalmanOnlyFrames)
                                 trackingSource = TrackingSource.KALMAN
-                                currentAlpha   = alphaKalman
+                                currentAlpha = alphaKalman
                                 lastTrackedCenter = Pair(
                                     (predicted.left + predicted.right) / 2f,
-                                    (predicted.top  + predicted.bottom) / 2f
+                                    (predicted.top + predicted.bottom) / 2f
                                 )
                                 smoothBbox(
                                     predicted, srcW, srcH,
                                     closestDetectionToTracked() ?: latestAllDetections.firstOrNull()
                                 )
                             } else {
+                                // FIX 2: grace period — no reiniciar OF si acaba de iniciarse
+                                val ofGraceActive = opticalFlowTracker.framesAfterInit <
+                                        opticalFlowTracker.GRACE_FRAMES
+
                                 val fallback = closestDetectionToTracked()
-                                if (fallback != null) {
+
+                                if (fallback != null && !ofGraceActive) {
+                                    // OF tuvo tiempo de estabilizarse y sigue Lost → reiniciar
                                     fallbackDetectionCount++
                                     consecutiveKalmanOnlyFrames = 0
                                     trackingSource = TrackingSource.FALLBACK_DETECTOR
-                                    currentAlpha   = alphaKalman
+                                    currentAlpha = alphaKalman
+
                                     if (!grayMat.empty()) {
                                         try {
                                             opticalFlowTracker.init(
                                                 grayMat,
                                                 fallback.toCvRect(grayMat.cols(), grayMat.rows())
                                             )
-                                            bboxKalman.reset()
-                                            recentOfFoundCount     = 0
-                                            framesSinceLastOfFound = 0
+                                            // FIX 3: NO resetear Kalman aquí
                                         } catch (_: Throwable) {}
                                     }
+
                                     lastTrackedCenter = Pair(
                                         (fallback.left + fallback.right) / 2f,
-                                        (fallback.top  + fallback.bottom) / 2f
+                                        (fallback.top + fallback.bottom) / 2f
                                     )
                                     smoothBbox(fallback.toAndroidRect(srcW, srcH), srcW, srcH, fallback)
+
+                                } else if (fallback != null && ofGraceActive) {
+                                    // OF recién iniciado — mostrar posición TFLite mientras converge
+                                    trackingSource = TrackingSource.KALMAN
+                                    currentAlpha = alphaKalman
+                                    lastTrackedCenter = Pair(
+                                        (fallback.left + fallback.right) / 2f,
+                                        (fallback.top + fallback.bottom) / 2f
+                                    )
+                                    smoothBbox(fallback.toAndroidRect(srcW, srcH), srcW, srcH, fallback)
+
                                 } else {
                                     consecutiveKalmanOnlyFrames = 0
                                     trackingSource = TrackingSource.LOST
@@ -352,21 +388,22 @@ class FrameAnalyzer(
                 if (arucoFrameCounter % arucoEveryNFrames == 0) {
                     try {
                         lastCalibrationState = arucoDetector.detectScale(
-                            bitmap       = bitmap,
+                            bitmap = bitmap,
                             markerSizeCm = markerSizeCmProvider()
                         )
                     } catch (e: Throwable) {
-                        lastCalibrationState = CalibrationState.Error("ArUco: ${e.javaClass.simpleName}")
+                        lastCalibrationState =
+                            CalibrationState.Error("ArUco: ${e.javaClass.simpleName}")
                     }
                 }
 
                 // 7) Medición
-                val calibrated  = lastCalibrationState as? CalibrationState.Calibrated
+                val calibrated = lastCalibrationState as? CalibrationState.Calibrated
                 val measurement = if (calibrated != null && trackedThisFrame != null)
                     measurementManager.measureObject(trackedThisFrame, calibrated.cmPerPx)
                 else null
 
-                // 8) Grabar punto en todos los frames con tracking activo
+                // 8) Grabar punto — FIX 5: en todos los frames con tracking activo
                 if (isRecording() && sessionRecorder.isActive && trackedThisFrame != null) {
                     recordPoint(trackedThisFrame, calibrated)
                 }
@@ -384,9 +421,11 @@ class FrameAnalyzer(
             } catch (e: Exception) {
                 opticalFlowTracker.reset()
                 bboxKalman.reset()
-                lastTrackedCenter      = null
-                recentOfFoundCount     = 0; framesSinceLastOfFound = 0
-                emitIfChanged(emptyList(), null, CalibrationState.Searching, "ERR: ${e.javaClass.simpleName}")
+                lastTrackedCenter = null
+                emitIfChanged(
+                    emptyList(), null, CalibrationState.Searching,
+                    "ERR: ${e.javaClass.simpleName}"
+                )
                 onTrackedDetection(null)
                 lastTrackingSource = TrackingSource.LOST
                 updateAnalyzerPerf(frameStartNs)
@@ -397,19 +436,22 @@ class FrameAnalyzer(
         }
     }
 
-    // ── TFLite async ──────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
 
     private fun launchDetection(
-        bitmap: Bitmap, srcW: Int, srcH: Int,
-        detector: TfliteObjectDetector, refCenter: Pair<Float, Float>?
+        bitmap: Bitmap,
+        srcW: Int,
+        srcH: Int,
+        detector: TfliteObjectDetector,
+        refCenter: Pair<Float, Float>?
     ) {
-        val bmpCopy   = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
-        val cropSize  = min(srcW, srcH)
-        val xOffset   = ((srcW - cropSize) / 2f).coerceAtLeast(0f)
-        val yOffset   = ((srcH - cropSize) / 2f).coerceAtLeast(0f)
-        val scaleX    = cropSize.toFloat() / detector.inputWidth
-        val scaleY    = cropSize.toFloat() / detector.inputHeight
-        val enterThr  = enterThresholdProvider()
+        val bmpCopy = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
+        val cropSize = min(srcW, srcH)
+        val xOffset = ((srcW - cropSize) / 2f).coerceAtLeast(0f)
+        val yOffset = ((srcH - cropSize) / 2f).coerceAtLeast(0f)
+        val scaleX = cropSize.toFloat() / detector.inputWidth
+        val scaleY = cropSize.toFloat() / detector.inputHeight
+        val enterThr = enterThresholdProvider()
         val maxPClass = maxPerClassProvider().coerceIn(1, 10)
         val maxPFrame = maxPerFrameProvider().coerceIn(1, 6)
 
@@ -418,7 +460,7 @@ class FrameAnalyzer(
             try {
                 ensureProcessor(cropSize, detector.inputWidth, detector.inputHeight)
                 reusableTensorImage.load(bmpCopy)
-                val input   = processor!!.process(reusableTensorImage)
+                val input = processor!!.process(reusableTensorImage)
                 val results = detector.detect(input)
                 bmpCopy.recycle()
 
@@ -427,8 +469,8 @@ class FrameAnalyzer(
                     if (best.score < enterThr) return@mapNotNull null
                     val box = det.boundingBox
                     UiDetection(
-                        label  = best.label ?: "Object",
-                        score  = best.score,
+                        label = best.label ?: "Object",
+                        score = best.score,
                         left   = (box.left   * scaleX + xOffset).coerceIn(0f, srcW.toFloat()),
                         top    = (box.top    * scaleY + yOffset).coerceIn(0f, srcH.toFloat()),
                         right  = (box.right  * scaleX + xOffset).coerceIn(0f, srcW.toFloat()),
@@ -445,23 +487,23 @@ class FrameAnalyzer(
                     val (refX, refY) = refCenter
                     raw.minByOrNull { d ->
                         val cx = (d.left + d.right) / 2f
-                        val cy = (d.top  + d.bottom) / 2f
+                        val cy = (d.top + d.bottom) / 2f
                         (cx - refX) * (cx - refX) + (cy - refY) * (cy - refY)
                     }
                 } else null
 
                 val allWithSelection = raw.map { it.copy(isSelected = it == best) }
-                if (best != null) pendingDetection = PendingDetection(best, allWithSelection)
-                else latestAllDetections = allWithSelection
-
+                if (best != null) {
+                    pendingDetection = PendingDetection(best, allWithSelection)
+                } else {
+                    latestAllDetections = allWithSelection
+                }
             } catch (_: Exception) {
             } finally {
                 detectionRunning = false
             }
         }
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun handleCameraInactive() {
         arucoDetector.reset()
@@ -471,8 +513,8 @@ class FrameAnalyzer(
         smoothInit = false
         emaX = null; emaY = null
         lastKnownCenter = null; lastTrackedCenter = null
-        latestAllDetections = emptyList(); pendingDetection = null
-        recentOfFoundCount = 0; framesSinceLastOfFound = 0
+        latestAllDetections = emptyList()
+        pendingDetection = null
         ofUpdateCount = 0; ofFoundCount = 0; ofLostCount = 0
         kalmanPredictCount = 0; fallbackDetectionCount = 0
         consecutiveKalmanOnlyFrames = 0; maxKalmanOnlyFrames = 0
@@ -499,7 +541,7 @@ class FrameAnalyzer(
 
     private fun recordPoint(tracked: UiDetection, calibrated: CalibrationState.Calibrated?) {
         val rawCx = (tracked.left + tracked.right) / 2f
-        val rawCy = (tracked.top  + tracked.bottom) / 2f
+        val rawCy = (tracked.top + tracked.bottom) / 2f
         val prevX = emaX; val prevY = emaY
         val isJump = prevX != null && prevY != null &&
                 (abs(rawCx - prevX) > maxJumpPx || abs(rawCy - prevY) > maxJumpPx)
@@ -517,7 +559,10 @@ class FrameAnalyzer(
         }
     }
 
-    private fun buildUiDetections(tracked: UiDetection?, all: List<UiDetection>): List<UiDetection> {
+    private fun buildUiDetections(
+        tracked: UiDetection?,
+        all: List<UiDetection>
+    ): List<UiDetection> {
         val marked = all.map { d ->
             d.copy(isSelected = tracked != null && iou(d, tracked) > 0.3f)
         }
@@ -527,9 +572,12 @@ class FrameAnalyzer(
     }
 
     private fun smoothBbox(
-        box: android.graphics.Rect, srcW: Int, srcH: Int, ref: UiDetection?
+        box: android.graphics.Rect,
+        srcW: Int,
+        srcH: Int,
+        ref: UiDetection?
     ): UiDetection {
-        val fL = box.left.toFloat();  val fT = box.top.toFloat()
+        val fL = box.left.toFloat(); val fT = box.top.toFloat()
         val fR = box.right.toFloat(); val fB = box.bottom.toFloat()
         if (!smoothInit) {
             smoothL = fL; smoothT = fT; smoothR = fR; smoothB = fB; smoothInit = true
@@ -539,8 +587,7 @@ class FrameAnalyzer(
             smoothR += a * (fR - smoothR); smoothB += a * (fB - smoothB)
         }
         return UiDetection(
-            label  = ref?.label ?: "Object",
-            score  = ref?.score ?: 1f,
+            label = ref?.label ?: "Object", score = ref?.score ?: 1f,
             left   = smoothL.coerceIn(0f, srcW.toFloat()),
             top    = smoothT.coerceIn(0f, srcH.toFloat()),
             right  = smoothR.coerceIn(0f, srcW.toFloat()),
@@ -569,10 +616,9 @@ class FrameAnalyzer(
         android.graphics.Rect(x, y, x + width, y + height)
 
     private fun iou(a: UiDetection, b: UiDetection): Float {
-        val iL = max(a.left, b.left);   val iT = max(a.top, b.top)
+        val iL = max(a.left, b.left); val iT = max(a.top, b.top)
         val iR = min(a.right, b.right); val iB = min(a.bottom, b.bottom)
-        val iW = (iR - iL).coerceAtLeast(0f)
-        val iH = (iB - iT).coerceAtLeast(0f)
+        val iW = (iR - iL).coerceAtLeast(0f); val iH = (iB - iT).coerceAtLeast(0f)
         val inter = iW * iH
         val union = (a.right - a.left) * (a.bottom - a.top) +
                 (b.right - b.left) * (b.bottom - b.top) - inter
@@ -580,16 +626,21 @@ class FrameAnalyzer(
     }
 
     private fun emitIfChanged(
-        detections: List<UiDetection>, measurement: MeasurementResult?,
-        calibration: CalibrationState, status: String
+        detections: List<UiDetection>,
+        measurement: MeasurementResult?,
+        calibration: CalibrationState,
+        status: String
     ) {
         val changed = detections.size != lastEmitDetections.size ||
                 detections.zip(lastEmitDetections).any { (a, b) ->
                     a.left != b.left || a.top != b.top ||
-                            a.right != b.right || a.bottom != b.bottom || a.isSelected != b.isSelected
+                            a.right != b.right || a.bottom != b.bottom ||
+                            a.isSelected != b.isSelected
                 }
         if (changed) { lastEmitDetections = detections; onDetections(detections) }
-        if (measurement != lastMeasurement) { lastMeasurement = measurement; onMeasurement(measurement) }
+        if (measurement != lastMeasurement) {
+            lastMeasurement = measurement; onMeasurement(measurement)
+        }
         val shouldEmitCal = calibration is CalibrationState.Calibrated ||
                 calibration::class != lastCalibrationState::class
         if (shouldEmitCal) onCalibration(calibration)
@@ -609,7 +660,9 @@ class FrameAnalyzer(
         if (pointsWindowStartNs == 0L) pointsWindowStartNs = now
         val pointsElapsedNs = now - pointsWindowStartNs
         if (pointsElapsedNs >= 1_000_000_000L) {
-            pointsPerSecond = pointsThisSecond; pointsThisSecond = 0; pointsWindowStartNs = now
+            pointsPerSecond = pointsThisSecond
+            pointsThisSecond = 0
+            pointsWindowStartNs = now
         }
     }
 
@@ -620,18 +673,23 @@ class FrameAnalyzer(
             append(" | Frame: ").append(String.format(Locale.US, "%.1f", lastFrameMs)).append(" ms")
             append(" | OF u/f/l: ").append(ofUpdateCount).append("/")
                 .append(ofFoundCount).append("/").append(ofLostCount)
+            // FIX 6: mostrar grace period para diagnóstico
+            append(" | Grace: ").append(opticalFlowTracker.framesAfterInit)
+                .append("/").append(opticalFlowTracker.GRACE_FRAMES)
             append(" | Kalman: ").append(kalmanPredictCount)
             append(" | K-streak: ").append(consecutiveKalmanOnlyFrames)
             append(" | K-max: ").append(maxKalmanOnlyFrames)
             append(" | Fallback: ").append(fallbackDetectionCount)
-            append(" | OFok: ").append(recentOfFoundCount)
             append(" | Pts/s: ").append(pointsPerSecond)
         }
         if (debug != lastTrackingDebug) { lastTrackingDebug = debug; onTrackingDebug(debug) }
     }
 
     private fun getBitmap(image: ImageProxy): Bitmap =
-        rotateBitmapIfNeededReusable(imageProxyToReusableBitmap(image), image.imageInfo.rotationDegrees)
+        rotateBitmapIfNeededReusable(
+            imageProxyToReusableBitmap(image),
+            image.imageInfo.rotationDegrees
+        )
 
     private fun ensureProcessor(cropSize: Int, modelW: Int, modelH: Int) {
         if (processor == null || cropSize != lastCrop || modelW != lastW || modelH != lastH) {
@@ -646,7 +704,7 @@ class FrameAnalyzer(
     private var lastRotationDegrees = -1
 
     private fun imageProxyToReusableBitmap(image: ImageProxy): Bitmap {
-        val w   = image.width; val h = image.height
+        val w = image.width; val h = image.height
         val bmp = if (rgbaBitmap?.width != w || rgbaBitmap?.height != h)
             Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { rgbaBitmap = it }
         else rgbaBitmap!!
@@ -656,11 +714,11 @@ class FrameAnalyzer(
     }
 
     private fun rotateBitmapIfNeededReusable(source: Bitmap, rotationDegrees: Int): Bitmap {
-        val norm    = ((rotationDegrees % 360) + 360) % 360
+        val norm = ((rotationDegrees % 360) + 360) % 360
         if (norm == 0) return source
         val targetW = if (norm == 90 || norm == 270) source.height else source.width
-        val targetH = if (norm == 90 || norm == 270) source.width  else source.height
-        val target  = if (rotatedBitmap?.width != targetW || rotatedBitmap?.height != targetH)
+        val targetH = if (norm == 90 || norm == 270) source.width else source.height
+        val target = if (rotatedBitmap?.width != targetW || rotatedBitmap?.height != targetH)
             Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888).also {
                 rotatedBitmap = it; rotatedCanvas = Canvas(it); lastRotationDegrees = -1
             }
