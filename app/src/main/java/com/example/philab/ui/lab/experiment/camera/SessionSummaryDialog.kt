@@ -81,7 +81,7 @@ fun SessionSummaryDialog(
                 Spacer(Modifier.height(10.dp))
 
                 Text(
-                    text = "Sesión finalizada",
+                    text = "Experimento finalizado",
                     color = TextPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
