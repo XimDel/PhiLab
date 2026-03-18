@@ -45,7 +45,8 @@ class CameraController(
         maxPerFrameProvider: () -> Int,
         selectedCenterProvider: () -> Pair<Float, Float>?,
         onTrackedDetection: (UiDetection?) -> Unit,
-        sessionRecorder: SessionRecorder
+        sessionRecorder: SessionRecorder,
+        onTrackingDebug: (String) -> Unit,
     ) {
         if (isBound) return
 
@@ -73,6 +74,7 @@ class CameraController(
                             onTotalFrames = onTotalFrames,
                             onDetections = onDetections,
                             onStatus = onDetectorStatus,
+                            onTrackingDebug = onTrackingDebug,
                             onCalibration = onCalibration,
                             onMeasurement = onMeasurement,
                             markerSizeCmProvider = markerSizeCmProvider,

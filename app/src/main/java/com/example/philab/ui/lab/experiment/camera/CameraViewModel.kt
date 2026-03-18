@@ -83,6 +83,13 @@ class CameraViewModel : ViewModel() {
     var livePointCount by mutableStateOf(0)
         private set
 
+    var trackingDebugInfo by mutableStateOf("Tracking: Idle")
+        private set
+
+    fun updateTrackingDebugInfo(value: String) {
+        trackingDebugInfo = value
+    }
+
     private var timerJob: Job? = null
 
     fun onUserTap(touchOffset: Offset) {

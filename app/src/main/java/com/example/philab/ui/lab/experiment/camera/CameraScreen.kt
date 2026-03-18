@@ -81,11 +81,10 @@ fun CameraScreen(
                     enterThresholdProvider = { viewModel.sensitivity.enter },
                     maxPerClassProvider = { viewModel.maxPerClass },
                     maxPerFrameProvider = { viewModel.maxPerFrame },
-                    selectedCenterProvider = {
-                        viewModel.selectedObject?.let { it.centerX to it.centerY }
-                    },
+                    selectedCenterProvider = { viewModel.selectedObject?.let { it.centerX to it.centerY }},
                     onTrackedDetection = viewModel::updateTrackedDetection,
-                    sessionRecorder = viewModel.sessionRecorder
+                    sessionRecorder = viewModel.sessionRecorder,
+                    onTrackingDebug = viewModel::updateTrackingDebugInfo
                 )
             }
         }
@@ -162,7 +161,8 @@ fun CameraScreen(
             onStartStop = viewModel::toggleRunning,
             selectedObject = viewModel.selectedObject,
             onClearSelection = viewModel::clearSelectedObject,
-            calibrationState = viewModel.calibrationState
+            calibrationState = viewModel.calibrationState,
+            trackingDebugInfo = viewModel.trackingDebugInfo
         )
 
         viewModel.experimentResults?.let { results ->
@@ -251,9 +251,27 @@ private fun CameraOverlay(
     onStartStop: () -> Unit,
     selectedObject: SelectedObject?,
     onClearSelection: () -> Unit,
-    calibrationState: CalibrationState
+    calibrationState: CalibrationState,
+    trackingDebugInfo: String
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
+
+        Card(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 12.dp, top = 12.dp, end = 12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.Black.copy(alpha = 0.65f)
+            )
+        ) {
+            Text(
+                text = trackingDebugInfo,
+                color = Color.White,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -332,7 +350,6 @@ private fun CameraOverlay(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Botón volver
                 IconButton(
                     onClick = onBack,
                     modifier = Modifier
@@ -347,7 +364,6 @@ private fun CameraOverlay(
                     )
                 }
 
-                // Botón configuración
                 IconButton(
                     onClick = onToggleConfig,
                     modifier = Modifier
@@ -362,7 +378,6 @@ private fun CameraOverlay(
                     )
                 }
 
-                // Calibrar | Detectar
                 Button(
                     onClick = onToggleCamera,
                     enabled = !isRunning,
@@ -377,7 +392,6 @@ private fun CameraOverlay(
                     )
                 }
 
-                // Iniciar / Detener grabación
                 Button(
                     onClick = onStartStop,
                     enabled = isCameraActive && selectedObject != null,
@@ -480,38 +494,4 @@ private fun formatElapsed(ms: Long): String {
     val seconds = (ms / 1000) % 60
     val milliseconds = (ms % 1000) / 10
     return "%02d:%02d:%02d".format(minutes, seconds, milliseconds)
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF000000, name = "Config abierta - cámara inactiva")
-@Composable
-private fun CameraOverlayConfigOpenPreview() {
-    MaterialTheme {
-        CameraOverlay(
-            isCameraActive = false,
-            isRunning = false,
-            models = listOf(
-                ModelOption("ssd_mobilenet_v1.tflite", "SSD MobileNet v1 (300×300)"),
-                ModelOption("efficientdet_lite0.tflite", "EfficientDet Lite0 (320×320)"),
-                ModelOption("efficientdet_lite4.tflite", "EfficientDet Lite4 (640×640)")
-            ),
-            selectedModel = ModelOption("efficientdet_lite0.tflite", "EfficientDet Lite0 (320×320)"),
-            onSelectModel = {},
-            showConfig = true,
-            onToggleConfig = {},
-            sensitivity = Sensitivity.ALTA,
-            onSensitivityChange = {},
-            maxPerFrame = 3,
-            onMaxPerFrameChange = {},
-            maxPerClass = 5,
-            onMaxPerClassChange = {},
-            markerSizeCm = 7.5f,
-            onMarkerSizeCmChange = {},
-            onBack = {},
-            onToggleCamera = {},
-            onStartStop = {},
-            selectedObject = null,
-            onClearSelection = {},
-            calibrationState = CalibrationState.Idle
-        )
-    }
 }

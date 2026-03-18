@@ -8,9 +8,9 @@ import androidx.camera.core.ImageProxy
 import com.example.philab.core.calibration.ArucoScaleDetector
 import com.example.philab.core.calibration.CalibrationState
 import com.example.philab.core.detection.TfliteObjectDetector
-import com.example.philab.domain.experiment.SessionRecorder
 import com.example.philab.core.measurement.MeasurementManager
 import com.example.philab.core.measurement.MeasurementResult
+import com.example.philab.domain.experiment.SessionRecorder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +23,7 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ops.ResizeWithCropOrPadOp
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -30,19 +31,16 @@ import kotlin.math.min
 /**
  * FrameAnalyzer — tracking con Optical Flow + Kalman + TFLite async.
  *
- * Pipeline por frame:
- *  1. Bitmap → grayMat  (analyzer thread)
- *  2. OpticalFlowTracker.update()  → tracking fluido cada frame
- *  3. BboxKalman.update/predict()  → suavizado + predicción oclusión
- *  4. TFLite cada N frames async   → re-detección, no bloquea
- *  5. ArUco cada 7 frames          → calibración escala
+ * Versión estable — la que producía FPS 23-24 con bbox siguiendo el objeto.
  *
- * Anti-SIGSEGV:
- *  - Todos los Mats OpenCV son lazy y solo usados en el analyzer thread.
- *  - TFLite nunca toca Mats — trabaja solo con Bitmap copiado.
- *  - El bbox de TFLite se valida contra el tamaño actual de grayMat
- *    antes de pasarlo a OpticalFlowTracker.init().
- *  - prevGray/grayMat size se verifican antes de calcOpticalFlowPyrLK.
+ * Fixes activos:
+ *   - pendingDetection NO reinicia el OF si recentOfFoundCount > 0
+ *     (elimina el salto visual cada ~600ms causado por reinits de TFLite)
+ *   - arucoEveryNFrames 15  (era 7 — ArUco es caro en hilo principal)
+ *   - detectionEveryNFrames 12 (era 8)
+ *   - alphaOF 0.72, alphaKalman 0.45
+ *   - recentOfFoundCount / framesSinceLastFound para salud del OF
+ *   - recordPoint en todos los frames con tracking (~20+ Hz)
  */
 class FrameAnalyzer(
     private val detectorProvider: () -> TfliteObjectDetector,
@@ -52,6 +50,7 @@ class FrameAnalyzer(
     private val onTotalFrames: (Long) -> Unit,
     private val onDetections: (List<UiDetection>) -> Unit,
     private val onStatus: (String) -> Unit,
+    private val onTrackingDebug: (String) -> Unit,
     private val onCalibration: (CalibrationState) -> Unit,
     private val onMeasurement: (MeasurementResult?) -> Unit,
     private val markerSizeCmProvider: () -> Float,
@@ -60,86 +59,114 @@ class FrameAnalyzer(
     private val maxPerFrameProvider: () -> Int,
     private val confirmFrames: Int = 2,
     private val dropFrames: Int = 3,
-    private val arucoEveryNFrames: Int = 7,
-    private val detectionEveryNFrames: Int = 15,
+    private val arucoEveryNFrames: Int = 15,
+    private val detectionEveryNFrames: Int = 12,
     private val selectedCenterProvider: () -> Pair<Float, Float>?,
     private val onTrackedDetection: (UiDetection?) -> Unit,
     private val sessionRecorder: SessionRecorder
 ) : ImageAnalysis.Analyzer {
 
-    // ── FPS ──────────────────────────────────────────────────────────────────
-    private var windowStartNs = 0L
+    // ── FPS UI ───────────────────────────────────────────────────────────────
+    private var windowStartNs  = 0L
     private var framesInWindow = 0
-    private var totalFrames = 0L
-    private val windowNs = 250_000_000L
+    private var totalFrames    = 0L
+    private val windowNs       = 250_000_000L
 
     // ── Bitmap reuse ─────────────────────────────────────────────────────────
     private var processor: ImageProcessor? = null
-    private var lastCrop = -1; private var lastW = -1; private var lastH = -1
-    private var rgbaBitmap: Bitmap? = null
+    private var lastCrop = -1
+    private var lastW    = -1
+    private var lastH    = -1
+
+    private var rgbaBitmap:    Bitmap? = null
     private var rotatedBitmap: Bitmap? = null
     private var rotatedCanvas: Canvas? = null
-    private val rotateMatrix = Matrix()
-    private val reusableTensorImage = TensorImage()
+    private val rotateMatrix           = Matrix()
+    private val reusableTensorImage    = TensorImage()
 
-    // ── OpenCV Mats — lazy, solo en analyzer thread ───────────────────────────
+    // ── OpenCV Mats ───────────────────────────────────────────────────────────
     private val rgbMat  by lazy { Mat() }
     private val grayMat by lazy { Mat() }
 
     // ── ArUco ────────────────────────────────────────────────────────────────
-    private val arucoDetector     by lazy { ArucoScaleDetector() }
+    private val arucoDetector      by lazy { ArucoScaleDetector() }
     private val measurementManager = MeasurementManager()
     private var arucoFrameCounter  = 0
     private var lastCalibrationState: CalibrationState = CalibrationState.Searching
 
-    // ── Optical Flow + Kalman — lazy, solo en analyzer thread ────────────────
+    // ── Optical Flow + Kalman ─────────────────────────────────────────────────
     private val opticalFlowTracker by lazy { OpticalFlowTracker() }
     private val bboxKalman         by lazy { BboxKalman() }
+
+    private var recentOfFoundCount     = 0
+    private var framesSinceLastOfFound = 0
 
     // ── TFLite async ─────────────────────────────────────────────────────────
     private val detectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     @Volatile private var detectionRunning = false
     private var frameCounter = 0
 
-    // Resultado pendiente de TFLite — escrito en detectionScope,
-    // consumido en el analyzer thread al inicio del siguiente frame.
-    // Incluye srcW/srcH del frame en que fue generado para validar bounds.
     private data class PendingDetection(
         val detection: UiDetection,
-        val allDetections: List<UiDetection>,
-        val srcW: Int,
-        val srcH: Int
+        val allDetections: List<UiDetection>
     )
-    @Volatile private var pendingDetection: PendingDetection? = null
-    @Volatile private var latestAllDetections: List<UiDetection> = emptyList()
+
+    @Volatile private var pendingDetection:    PendingDetection?   = null
+    @Volatile private var latestAllDetections: List<UiDetection>   = emptyList()
 
     // ── Estado de tracking ────────────────────────────────────────────────────
-    private var lastKnownCenter: Pair<Float, Float>? = null
+    private var lastKnownCenter:   Pair<Float, Float>? = null
+    private var lastTrackedCenter: Pair<Float, Float>? = null
 
     // ── EMA visual del bbox ───────────────────────────────────────────────────
     private var smoothL = 0f; private var smoothT = 0f
     private var smoothR = 0f; private var smoothB = 0f
     private var smoothInit = false
-    private val drawAlpha = 0.4f
+
+    private val alphaOF     = 0.72f
+    private val alphaKalman = 0.45f
+    private var currentAlpha = alphaOF
 
     // ── EMA centroide grabado ─────────────────────────────────────────────────
-    private val emaAlpha = 0.35f
+    private val emaAlpha  = 0.5f
     private var emaX: Float? = null
     private var emaY: Float? = null
-    private val maxJumpPx = 120f
+    private val maxJumpPx = 150f
 
     // ── Emit dedup ────────────────────────────────────────────────────────────
     private var lastEmitDetections: List<UiDetection> = emptyList()
-    private var lastMeasurement: MeasurementResult? = null
-    private var lastStatus: String = ""
+    private var lastMeasurement:    MeasurementResult? = null
+    private var lastStatus:         String = ""
+
+    // ── Debug ─────────────────────────────────────────────────────────────────
+    private enum class TrackingSource { NONE, OPTICAL_FLOW, KALMAN, FALLBACK_DETECTOR, LOST }
+
+    private var ofUpdateCount               = 0
+    private var ofFoundCount                = 0
+    private var ofLostCount                 = 0
+    private var kalmanPredictCount          = 0
+    private var fallbackDetectionCount      = 0
+    private var consecutiveKalmanOnlyFrames = 0
+    private var maxKalmanOnlyFrames         = 0
+
+    private var analyzerPerfWindowStartNs = 0L
+    private var analyzerPerfFrames        = 0
+    private var analyzerFps               = 0.0
+    private var lastFrameMs               = 0.0
+
+    private var pointsThisSecond    = 0
+    private var pointsPerSecond     = 0
+    private var pointsWindowStartNs = 0L
+
+    private var lastTrackingSource = TrackingSource.NONE
+    private var lastTrackingDebug  = ""
 
     // ─────────────────────────────────────────────────────────────────────────
+
     override fun analyze(image: ImageProxy) {
+        val frameStartNs = System.nanoTime()
         try {
-            if (!isCameraActive()) {
-                handleCameraInactive()
-                return
-            }
+            if (!isCameraActive()) { handleCameraInactive(); return }
 
             tickFps()
             frameCounter++
@@ -150,26 +177,24 @@ class FrameAnalyzer(
                 val srcW     = bitmap.width
                 val srcH     = bitmap.height
 
-                // ── 1. Bitmap → grayMat (analyzer thread, OpenCV seguro) ──
+                // 1) Bitmap → grayMat
                 Utils.bitmapToMat(bitmap, rgbMat)
                 Imgproc.cvtColor(rgbMat, grayMat, Imgproc.COLOR_RGBA2GRAY)
 
-                // ── 2. Aplicar resultado pendiente de TFLite ──────────────
-                // CRÍTICO: validar que el bbox es compatible con grayMat actual
+                // 2) Aplicar pendingDetection — solo reinit OF si no está funcionando
                 val pending = pendingDetection
                 if (pending != null) {
-                    pendingDetection = null
+                    pendingDetection    = null
                     latestAllDetections = pending.allDetections
-                    // Solo inicializar OF si las dimensiones coinciden
-                    if (pending.srcW == srcW && pending.srcH == srcH &&
-                        !grayMat.empty() && grayMat.cols() == srcW && grayMat.rows() == srcH) {
-                        val cvBox = pending.detection.toCvRect(srcW, srcH)
+                    val ofIsWorking = opticalFlowTracker.isActive() && recentOfFoundCount > 0
+                    if (!ofIsWorking && !grayMat.empty()) {
+                        val cvBox = pending.detection.toCvRect(grayMat.cols(), grayMat.rows())
                         opticalFlowTracker.init(grayMat, cvBox)
                         bboxKalman.reset()
                     }
                 }
 
-                // ── 3. Gestionar cambio de selección ──────────────────────
+                // 3) Gestionar cambio de selección del usuario
                 val selectedCenter = selectedCenterProvider()
                 if (selectedCenter != lastKnownCenter) {
                     if (selectedCenter == null) {
@@ -177,44 +202,46 @@ class FrameAnalyzer(
                         bboxKalman.reset()
                         smoothInit = false
                         emaX = null; emaY = null
+                        lastTrackedCenter      = null
+                        recentOfFoundCount     = 0; framesSinceLastOfFound = 0
                     } else if (lastKnownCenter == null) {
-                        // Nueva selección — forzar detección inmediata
-                        // (el OF se inicializará cuando llegue el primer resultado TFLite)
                         opticalFlowTracker.reset()
                         bboxKalman.reset()
-                        // Si ya hay detecciones, inicializar desde la más cercana ahora
+                        lastTrackedCenter      = null
+                        recentOfFoundCount     = 0; framesSinceLastOfFound = 0
                         val (tapX, tapY) = selectedCenter
                         val seed = latestAllDetections.minByOrNull { d ->
                             val cx = (d.left + d.right) / 2f
-                            val cy = (d.top + d.bottom) / 2f
+                            val cy = (d.top  + d.bottom) / 2f
                             (cx - tapX) * (cx - tapX) + (cy - tapY) * (cy - tapY)
                         }
-                        if (seed != null && !grayMat.empty() &&
-                            grayMat.cols() == srcW && grayMat.rows() == srcH) {
-                            val cvBox = seed.toCvRect(srcW, srcH)
-                            opticalFlowTracker.init(grayMat, cvBox)
+                        if (seed != null && !grayMat.empty()) {
+                            opticalFlowTracker.init(
+                                grayMat, seed.toCvRect(grayMat.cols(), grayMat.rows())
+                            )
                         }
                     }
                     lastKnownCenter = selectedCenter
                 }
 
-                // ── 4. Optical Flow cada frame ────────────────────────────
-                val trackedThisFrame: UiDetection? = if (selectedCenter == null) {
-                    null
-                } else {
-                    val (selX, selY) = selectedCenter
+                // 4) Optical Flow + Kalman + fallback
+                var trackingSource = TrackingSource.NONE
 
-                    fun closestDetectionToSelection(): UiDetection? {
+                val trackedThisFrame: UiDetection? = if (selectedCenter == null) {
+                    lastTrackedCenter = null; null
+                } else {
+                    fun closestDetectionToTracked(): UiDetection? {
+                        val refX = lastTrackedCenter?.first  ?: selectedCenter.first
+                        val refY = lastTrackedCenter?.second ?: selectedCenter.second
                         return latestAllDetections.minByOrNull { d ->
                             val cx = (d.left + d.right) / 2f
-                            val cy = (d.top + d.bottom) / 2f
-                            val dx = cx - selX
-                            val dy = cy - selY
-                            dx * dx + dy * dy
+                            val cy = (d.top  + d.bottom) / 2f
+                            (cx - refX) * (cx - refX) + (cy - refY) * (cy - refY)
                         }
                     }
 
                     val ofResult = if (opticalFlowTracker.isActive()) {
+                        ofUpdateCount++
                         opticalFlowTracker.update(grayMat)
                     } else {
                         OpticalFlowTracker.TrackResult.Lost
@@ -222,110 +249,160 @@ class FrameAnalyzer(
 
                     when (ofResult) {
                         is OpticalFlowTracker.TrackResult.Found -> {
+                            ofFoundCount++
+                            recentOfFoundCount++
+                            framesSinceLastOfFound      = 0
+                            consecutiveKalmanOnlyFrames = 0
+                            trackingSource = TrackingSource.OPTICAL_FLOW
+                            currentAlpha   = alphaOF
+
                             val filteredBox = bboxKalman.update(ofResult.bbox.toAndroidRect())
+                            lastTrackedCenter = Pair(
+                                (filteredBox.left + filteredBox.right) / 2f,
+                                (filteredBox.top  + filteredBox.bottom) / 2f
+                            )
                             smoothBbox(
-                                filteredBox,
-                                srcW,
-                                srcH,
+                                filteredBox, srcW, srcH,
                                 latestAllDetections.firstOrNull { it.isSelected }
-                                    ?: closestDetectionToSelection()
+                                    ?: closestDetectionToTracked()
                                     ?: latestAllDetections.firstOrNull()
                             )
                         }
 
+                        is OpticalFlowTracker.TrackResult.JustInitialized -> {
+                            trackingSource = TrackingSource.OPTICAL_FLOW
+                            currentAlpha   = alphaOF
+                            val ref = closestDetectionToTracked() ?: latestAllDetections.firstOrNull()
+                            if (ref != null) {
+                                val box = ref.toAndroidRect(srcW, srcH)
+                                lastTrackedCenter = Pair(
+                                    (box.left + box.right) / 2f,
+                                    (box.top  + box.bottom) / 2f
+                                )
+                                smoothBbox(box, srcW, srcH, ref)
+                            } else {
+                                trackingSource = TrackingSource.LOST
+                                smoothInit = false; lastTrackedCenter = null; null
+                            }
+                        }
+
                         is OpticalFlowTracker.TrackResult.Lost -> {
+                            ofLostCount++
+                            framesSinceLastOfFound++
+                            if (framesSinceLastOfFound > 10) recentOfFoundCount = 0
+
                             val predicted = bboxKalman.predict()
                             if (predicted != null) {
+                                kalmanPredictCount++
+                                consecutiveKalmanOnlyFrames++
+                                maxKalmanOnlyFrames = maxOf(maxKalmanOnlyFrames, consecutiveKalmanOnlyFrames)
+                                trackingSource = TrackingSource.KALMAN
+                                currentAlpha   = alphaKalman
+                                lastTrackedCenter = Pair(
+                                    (predicted.left + predicted.right) / 2f,
+                                    (predicted.top  + predicted.bottom) / 2f
+                                )
                                 smoothBbox(
-                                    predicted,
-                                    srcW,
-                                    srcH,
-                                    closestDetectionToSelection() ?: latestAllDetections.firstOrNull()
+                                    predicted, srcW, srcH,
+                                    closestDetectionToTracked() ?: latestAllDetections.firstOrNull()
                                 )
                             } else {
-                                // Fallback directo a TFLite si OF/Kalman no entregan caja
-                                val fallback = closestDetectionToSelection()
+                                val fallback = closestDetectionToTracked()
                                 if (fallback != null) {
-                                    if (!opticalFlowTracker.isActive() && !grayMat.empty()) {
+                                    fallbackDetectionCount++
+                                    consecutiveKalmanOnlyFrames = 0
+                                    trackingSource = TrackingSource.FALLBACK_DETECTOR
+                                    currentAlpha   = alphaKalman
+                                    if (!grayMat.empty()) {
                                         try {
-                                            opticalFlowTracker.init(grayMat, fallback.toCvRect(srcW, srcH))
+                                            opticalFlowTracker.init(
+                                                grayMat,
+                                                fallback.toCvRect(grayMat.cols(), grayMat.rows())
+                                            )
                                             bboxKalman.reset()
-                                        } catch (_: Throwable) {
-                                        }
+                                            recentOfFoundCount     = 0
+                                            framesSinceLastOfFound = 0
+                                        } catch (_: Throwable) {}
                                     }
-                                    smoothBbox(
-                                        fallback.toAndroidRect(),
-                                        srcW,
-                                        srcH,
-                                        fallback
+                                    lastTrackedCenter = Pair(
+                                        (fallback.left + fallback.right) / 2f,
+                                        (fallback.top  + fallback.bottom) / 2f
                                     )
+                                    smoothBbox(fallback.toAndroidRect(srcW, srcH), srcW, srcH, fallback)
                                 } else {
-                                    smoothInit = false
-                                    null
+                                    consecutiveKalmanOnlyFrames = 0
+                                    trackingSource = TrackingSource.LOST
+                                    smoothInit = false; lastTrackedCenter = null; null
                                 }
                             }
                         }
                     }
                 }
 
-                // ── 5. TFLite async cada N frames ─────────────────────────
+                lastTrackingSource = trackingSource
+
+                // 5) TFLite async
                 if (frameCounter % detectionEveryNFrames == 0 && !detectionRunning) {
-                    launchDetection(bitmap, srcW, srcH, detector, selectedCenter)
+                    val refCenter = lastTrackedCenter ?: selectedCenter
+                    launchDetection(bitmap, srcW, srcH, detector, refCenter)
                 }
 
-                // ── 6. ArUco throttled ────────────────────────────────────
+                // 6) ArUco throttled
                 arucoFrameCounter++
                 if (arucoFrameCounter % arucoEveryNFrames == 0) {
                     try {
                         lastCalibrationState = arucoDetector.detectScale(
-                            bitmap = bitmap, markerSizeCm = markerSizeCmProvider()
+                            bitmap       = bitmap,
+                            markerSizeCm = markerSizeCmProvider()
                         )
                     } catch (e: Throwable) {
-                        lastCalibrationState =
-                            CalibrationState.Error("ArUco: ${e.javaClass.simpleName}")
+                        lastCalibrationState = CalibrationState.Error("ArUco: ${e.javaClass.simpleName}")
                     }
                 }
 
-                // ── 7. Medición ───────────────────────────────────────────
+                // 7) Medición
                 val calibrated  = lastCalibrationState as? CalibrationState.Calibrated
-                val measurement = if (calibrated != null && trackedThisFrame != null) {
+                val measurement = if (calibrated != null && trackedThisFrame != null)
                     measurementManager.measureObject(trackedThisFrame, calibrated.cmPerPx)
-                } else null
+                else null
 
-                // ── 8. Grabar punto ───────────────────────────────────────
+                // 8) Grabar punto en todos los frames con tracking activo
                 if (isRecording() && sessionRecorder.isActive && trackedThisFrame != null) {
                     recordPoint(trackedThisFrame, calibrated)
                 }
 
-                // ── 9. Emitir a UI ────────────────────────────────────────
+                // 9) Emitir a UI
                 val uiDetections = buildUiDetections(trackedThisFrame, latestAllDetections)
                 onTrackedDetection(trackedThisFrame?.copy(isSelected = true))
                 val status = if (isRecording()) "Grabando"
                 else "Obj. detectados: ${latestAllDetections.size}"
                 emitIfChanged(uiDetections, measurement, lastCalibrationState, status)
 
+                updateAnalyzerPerf(frameStartNs)
+                updateTrackingDebug()
+
             } catch (e: Exception) {
                 opticalFlowTracker.reset()
                 bboxKalman.reset()
-                emitIfChanged(emptyList(), null, CalibrationState.Searching,
-                    "ERR: ${e.javaClass.simpleName}")
+                lastTrackedCenter      = null
+                recentOfFoundCount     = 0; framesSinceLastOfFound = 0
+                emitIfChanged(emptyList(), null, CalibrationState.Searching, "ERR: ${e.javaClass.simpleName}")
                 onTrackedDetection(null)
+                lastTrackingSource = TrackingSource.LOST
+                updateAnalyzerPerf(frameStartNs)
+                updateTrackingDebug()
             }
         } finally {
             image.close()
         }
     }
 
-    // ── TFLite launch ─────────────────────────────────────────────────────────
+    // ── TFLite async ──────────────────────────────────────────────────────────
 
     private fun launchDetection(
-        bitmap: Bitmap,
-        srcW: Int,
-        srcH: Int,
-        detector: TfliteObjectDetector,
-        selectedCenter: Pair<Float, Float>?
+        bitmap: Bitmap, srcW: Int, srcH: Int,
+        detector: TfliteObjectDetector, refCenter: Pair<Float, Float>?
     ) {
-        // Copiar bitmap ANTES de lanzar la coroutine — el original puede reciclarse
         val bmpCopy   = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
         val cropSize  = min(srcW, srcH)
         val xOffset   = ((srcW - cropSize) / 2f).coerceAtLeast(0f)
@@ -340,9 +417,8 @@ class FrameAnalyzer(
             detectionRunning = true
             try {
                 ensureProcessor(cropSize, detector.inputWidth, detector.inputHeight)
-                val ti = TensorImage()
-                ti.load(bmpCopy)
-                val input   = processor!!.process(ti)
+                reusableTensorImage.load(bmpCopy)
+                val input   = processor!!.process(reusableTensorImage)
                 val results = detector.detect(input)
                 bmpCopy.recycle()
 
@@ -365,26 +441,20 @@ class FrameAnalyzer(
                     .sortedByDescending { it.score }
                     .take(maxPFrame)
 
-                val best = if (selectedCenter != null) {
-                    val (tapX, tapY) = selectedCenter
+                val best = if (refCenter != null) {
+                    val (refX, refY) = refCenter
                     raw.minByOrNull { d ->
                         val cx = (d.left + d.right) / 2f
-                        val cy = (d.top + d.bottom) / 2f
-                        (cx - tapX) * (cx - tapX) + (cy - tapY) * (cy - tapY)
+                        val cy = (d.top  + d.bottom) / 2f
+                        (cx - refX) * (cx - refX) + (cy - refY) * (cy - refY)
                     }
                 } else null
 
                 val allWithSelection = raw.map { it.copy(isSelected = it == best) }
+                if (best != null) pendingDetection = PendingDetection(best, allWithSelection)
+                else latestAllDetections = allWithSelection
 
-                if (best != null) {
-                    // Pasar srcW/srcH junto al resultado para validar en el analyzer thread
-                    pendingDetection = PendingDetection(best, allWithSelection, srcW, srcH)
-                } else {
-                    // Sin selección: solo actualizar la lista de detecciones
-                    latestAllDetections = allWithSelection
-                }
-            } catch (e: Exception) {
-                // silencioso
+            } catch (_: Exception) {
             } finally {
                 detectionRunning = false
             }
@@ -400,9 +470,17 @@ class FrameAnalyzer(
         bboxKalman.reset()
         smoothInit = false
         emaX = null; emaY = null
-        lastKnownCenter = null
-        latestAllDetections = emptyList()
-        pendingDetection = null
+        lastKnownCenter = null; lastTrackedCenter = null
+        latestAllDetections = emptyList(); pendingDetection = null
+        recentOfFoundCount = 0; framesSinceLastOfFound = 0
+        ofUpdateCount = 0; ofFoundCount = 0; ofLostCount = 0
+        kalmanPredictCount = 0; fallbackDetectionCount = 0
+        consecutiveKalmanOnlyFrames = 0; maxKalmanOnlyFrames = 0
+        analyzerPerfWindowStartNs = 0L; analyzerPerfFrames = 0
+        analyzerFps = 0.0; lastFrameMs = 0.0
+        pointsThisSecond = 0; pointsPerSecond = 0; pointsWindowStartNs = 0L
+        lastTrackingSource = TrackingSource.NONE; lastTrackingDebug = ""
+        onTrackingDebug("Tracking: Idle")
         emitIfChanged(emptyList(), null, CalibrationState.Idle, "Modelo de detección listo")
         onTrackedDetection(null)
     }
@@ -421,7 +499,7 @@ class FrameAnalyzer(
 
     private fun recordPoint(tracked: UiDetection, calibrated: CalibrationState.Calibrated?) {
         val rawCx = (tracked.left + tracked.right) / 2f
-        val rawCy = (tracked.top + tracked.bottom) / 2f
+        val rawCy = (tracked.top  + tracked.bottom) / 2f
         val prevX = emaX; val prevY = emaY
         val isJump = prevX != null && prevY != null &&
                 (abs(rawCx - prevX) > maxJumpPx || abs(rawCy - prevY) > maxJumpPx)
@@ -435,41 +513,30 @@ class FrameAnalyzer(
             } else {
                 sessionRecorder.addPoint(xCm = cx, yCm = cy)
             }
+            pointsThisSecond++
         }
     }
 
-    private fun buildUiDetections(
-        tracked: UiDetection?,
-        all: List<UiDetection>
-    ): List<UiDetection> {
+    private fun buildUiDetections(tracked: UiDetection?, all: List<UiDetection>): List<UiDetection> {
         val marked = all.map { d ->
-            val isThis = tracked != null && iou(d, tracked) > 0.3f
-            d.copy(isSelected = isThis)
+            d.copy(isSelected = tracked != null && iou(d, tracked) > 0.3f)
         }
-        // Si hay tracking activo pero el objeto no está en la lista (entre detecciones TFLite),
-        // agregar el bbox trackeado para que siempre se dibuje
-        return if (tracked != null && marked.none { it.isSelected }) {
+        return if (tracked != null && marked.none { it.isSelected })
             listOf(tracked.copy(isSelected = true)) + marked
-        } else marked
+        else marked
     }
 
     private fun smoothBbox(
-        box: android.graphics.Rect,
-        srcW: Int, srcH: Int,
-        ref: UiDetection?
+        box: android.graphics.Rect, srcW: Int, srcH: Int, ref: UiDetection?
     ): UiDetection {
-        val fL = box.left.toFloat()
-        val fT = box.top.toFloat()
-        val fR = box.right.toFloat()
-        val fB = box.bottom.toFloat()
+        val fL = box.left.toFloat();  val fT = box.top.toFloat()
+        val fR = box.right.toFloat(); val fB = box.bottom.toFloat()
         if (!smoothInit) {
-            smoothL = fL; smoothT = fT; smoothR = fR; smoothB = fB
-            smoothInit = true
+            smoothL = fL; smoothT = fT; smoothR = fR; smoothB = fB; smoothInit = true
         } else {
-            smoothL += drawAlpha * (fL - smoothL)
-            smoothT += drawAlpha * (fT - smoothT)
-            smoothR += drawAlpha * (fR - smoothR)
-            smoothB += drawAlpha * (fB - smoothB)
+            val a = currentAlpha
+            smoothL += a * (fL - smoothL); smoothT += a * (fT - smoothT)
+            smoothR += a * (fR - smoothR); smoothB += a * (fB - smoothB)
         }
         return UiDetection(
             label  = ref?.label ?: "Object",
@@ -478,12 +545,10 @@ class FrameAnalyzer(
             top    = smoothT.coerceIn(0f, srcH.toFloat()),
             right  = smoothR.coerceIn(0f, srcW.toFloat()),
             bottom = smoothB.coerceIn(0f, srcH.toFloat()),
-            sourceWidth = srcW, sourceHeight = srcH,
-            isSelected = true
+            sourceWidth = srcW, sourceHeight = srcH, isSelected = true
         )
     }
 
-    /** Convierte UiDetection a opencv Rect, asegurando que está dentro de srcW×srcH */
     private fun UiDetection.toCvRect(w: Int, h: Int): Rect {
         val x1 = left.toInt().coerceIn(0, w - 1)
         val y1 = top.toInt().coerceIn(0, h - 1)
@@ -492,16 +557,14 @@ class FrameAnalyzer(
         return Rect(x1, y1, x2 - x1, y2 - y1)
     }
 
-    private fun UiDetection.toAndroidRect(): android.graphics.Rect {
-        return android.graphics.Rect(
-            left.toInt(),
-            top.toInt(),
-            right.toInt(),
-            bottom.toInt()
-        )
+    private fun UiDetection.toAndroidRect(w: Int, h: Int): android.graphics.Rect {
+        val l = left.toInt().coerceIn(0, w - 1)
+        val t = top.toInt().coerceIn(0, h - 1)
+        val r = right.toInt().coerceIn(l + 1, w)
+        val b = bottom.toInt().coerceIn(t + 1, h)
+        return android.graphics.Rect(l, t, r, b)
     }
 
-    /** Convierte opencv Rect a android.graphics.Rect para BboxKalman */
     private fun Rect.toAndroidRect(): android.graphics.Rect =
         android.graphics.Rect(x, y, x + width, y + height)
 
@@ -511,22 +574,19 @@ class FrameAnalyzer(
         val iW = (iR - iL).coerceAtLeast(0f)
         val iH = (iB - iT).coerceAtLeast(0f)
         val inter = iW * iH
-        val union = (a.right-a.left)*(a.bottom-a.top) +
-                (b.right-b.left)*(b.bottom-b.top) - inter
+        val union = (a.right - a.left) * (a.bottom - a.top) +
+                (b.right - b.left) * (b.bottom - b.top) - inter
         return if (union <= 0f) 0f else inter / union
     }
 
     private fun emitIfChanged(
-        detections: List<UiDetection>,
-        measurement: MeasurementResult?,
-        calibration: CalibrationState,
-        status: String
+        detections: List<UiDetection>, measurement: MeasurementResult?,
+        calibration: CalibrationState, status: String
     ) {
         val changed = detections.size != lastEmitDetections.size ||
                 detections.zip(lastEmitDetections).any { (a, b) ->
                     a.left != b.left || a.top != b.top ||
-                            a.right != b.right || a.bottom != b.bottom ||
-                            a.isSelected != b.isSelected
+                            a.right != b.right || a.bottom != b.bottom || a.isSelected != b.isSelected
                 }
         if (changed) { lastEmitDetections = detections; onDetections(detections) }
         if (measurement != lastMeasurement) { lastMeasurement = measurement; onMeasurement(measurement) }
@@ -536,13 +596,42 @@ class FrameAnalyzer(
         if (status != lastStatus) { lastStatus = status; onStatus(status) }
     }
 
-    // ── Bitmap utils ──────────────────────────────────────────────────────────
+    private fun updateAnalyzerPerf(frameStartNs: Long) {
+        val now = System.nanoTime()
+        lastFrameMs = (now - frameStartNs) / 1_000_000.0
+        if (analyzerPerfWindowStartNs == 0L) analyzerPerfWindowStartNs = now
+        analyzerPerfFrames++
+        val elapsedNs = now - analyzerPerfWindowStartNs
+        if (elapsedNs >= 1_000_000_000L) {
+            analyzerFps = analyzerPerfFrames * 1_000_000_000.0 / elapsedNs.toDouble()
+            analyzerPerfFrames = 0; analyzerPerfWindowStartNs = now
+        }
+        if (pointsWindowStartNs == 0L) pointsWindowStartNs = now
+        val pointsElapsedNs = now - pointsWindowStartNs
+        if (pointsElapsedNs >= 1_000_000_000L) {
+            pointsPerSecond = pointsThisSecond; pointsThisSecond = 0; pointsWindowStartNs = now
+        }
+    }
+
+    private fun updateTrackingDebug() {
+        val debug = buildString {
+            append("Tracking: ").append(lastTrackingSource)
+            append(" | FPS: ").append(String.format(Locale.US, "%.1f", analyzerFps))
+            append(" | Frame: ").append(String.format(Locale.US, "%.1f", lastFrameMs)).append(" ms")
+            append(" | OF u/f/l: ").append(ofUpdateCount).append("/")
+                .append(ofFoundCount).append("/").append(ofLostCount)
+            append(" | Kalman: ").append(kalmanPredictCount)
+            append(" | K-streak: ").append(consecutiveKalmanOnlyFrames)
+            append(" | K-max: ").append(maxKalmanOnlyFrames)
+            append(" | Fallback: ").append(fallbackDetectionCount)
+            append(" | OFok: ").append(recentOfFoundCount)
+            append(" | Pts/s: ").append(pointsPerSecond)
+        }
+        if (debug != lastTrackingDebug) { lastTrackingDebug = debug; onTrackingDebug(debug) }
+    }
 
     private fun getBitmap(image: ImageProxy): Bitmap =
-        rotateBitmapIfNeededReusable(
-            imageProxyToReusableBitmap(image),
-            image.imageInfo.rotationDegrees
-        )
+        rotateBitmapIfNeededReusable(imageProxyToReusableBitmap(image), image.imageInfo.rotationDegrees)
 
     private fun ensureProcessor(cropSize: Int, modelW: Int, modelH: Int) {
         if (processor == null || cropSize != lastCrop || modelW != lastW || modelH != lastH) {
@@ -557,24 +646,25 @@ class FrameAnalyzer(
     private var lastRotationDegrees = -1
 
     private fun imageProxyToReusableBitmap(image: ImageProxy): Bitmap {
-        val w = image.width; val h = image.height
-        val bmp = if (rgbaBitmap?.width != w || rgbaBitmap?.height != h) {
+        val w   = image.width; val h = image.height
+        val bmp = if (rgbaBitmap?.width != w || rgbaBitmap?.height != h)
             Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { rgbaBitmap = it }
-        } else rgbaBitmap!!
+        else rgbaBitmap!!
         image.planes[0].buffer.rewind()
         bmp.copyPixelsFromBuffer(image.planes[0].buffer)
         return bmp
     }
 
     private fun rotateBitmapIfNeededReusable(source: Bitmap, rotationDegrees: Int): Bitmap {
-        val norm = ((rotationDegrees % 360) + 360) % 360
+        val norm    = ((rotationDegrees % 360) + 360) % 360
         if (norm == 0) return source
         val targetW = if (norm == 90 || norm == 270) source.height else source.width
-        val targetH = if (norm == 90 || norm == 270) source.width else source.height
-        val target = if (rotatedBitmap?.width != targetW || rotatedBitmap?.height != targetH) {
-            Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
-                .also { rotatedBitmap = it; rotatedCanvas = Canvas(it); lastRotationDegrees = -1 }
-        } else rotatedBitmap!!
+        val targetH = if (norm == 90 || norm == 270) source.width  else source.height
+        val target  = if (rotatedBitmap?.width != targetW || rotatedBitmap?.height != targetH)
+            Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888).also {
+                rotatedBitmap = it; rotatedCanvas = Canvas(it); lastRotationDegrees = -1
+            }
+        else rotatedBitmap!!
         val canvas = rotatedCanvas ?: Canvas(target).also { rotatedCanvas = it }
         canvas.setBitmap(target); target.eraseColor(0)
         if (norm != lastRotationDegrees) {
