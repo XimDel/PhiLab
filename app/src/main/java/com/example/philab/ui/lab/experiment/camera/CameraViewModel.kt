@@ -95,24 +95,35 @@ class CameraViewModel : ViewModel() {
 
         val srcW = currentDetections.first().sourceWidth.toFloat()
         val srcH = currentDetections.first().sourceHeight.toFloat()
+
         val scale = maxOf(viewW / srcW, viewH / srcH)
         val dx = (viewW - srcW * scale) / 2f
         val dy = (viewH - srcH * scale) / 2f
+
         val tapX = (touchOffset.x - dx) / scale
         val tapY = (touchOffset.y - dy) / scale
 
-        val closest = currentDetections.minByOrNull { det ->
-            val cx = (det.left + det.right) / 2f
-            val cy = (det.top + det.bottom) / 2f
-            hypot((cx - tapX).toDouble(), (cy - tapY).toDouble())
-        } ?: return
+        val tapped = currentDetections
+            .filter { det ->
+                tapX in det.left..det.right && tapY in det.top..det.bottom
+            }
+            .minByOrNull { det ->
+                val cx = (det.left + det.right) / 2f
+                val cy = (det.top + det.bottom) / 2f
+                hypot((cx - tapX).toDouble(), (cy - tapY).toDouble())
+            }
+
+        if (tapped == null) {
+            clearSelectedObject()
+            return
+        }
 
         selectedObject = SelectedObject(
-            label = closest.label,
-            centerX = (closest.left + closest.right) / 2f,
-            centerY = (closest.top + closest.bottom) / 2f
+            label = tapped.label,
+            centerX = (tapped.left + tapped.right) / 2f,
+            centerY = (tapped.top + tapped.bottom) / 2f
         )
-        trackedDetection = closest
+        trackedDetection = tapped
     }
 
     fun clearExperimentResults() {
