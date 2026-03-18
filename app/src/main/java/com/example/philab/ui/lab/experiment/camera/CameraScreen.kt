@@ -137,7 +137,8 @@ fun CameraScreen(
             detectorStatus = viewModel.detectorStatus,
             livePointCount = viewModel.livePointCount,
             isRunning = viewModel.isRunning,
-            isCameraActive = viewModel.isCameraActive
+            isCameraActive = viewModel.isCameraActive,
+            detectorInfo = detectorManager.detectorInfo
         )
 
         CameraOverlay(
@@ -182,7 +183,8 @@ private fun BoxScope.CameraStatsOverlay(
     detectorStatus: String,
     livePointCount: Int,
     isRunning: Boolean,
-    isCameraActive: Boolean
+    isCameraActive: Boolean,
+    detectorInfo: String
 ) {
     Column(
         modifier = Modifier
@@ -195,6 +197,7 @@ private fun BoxScope.CameraStatsOverlay(
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.End
     ) {
+        Text(text = detectorInfo, color = Color.White, fontSize = 12.sp)
         val statusColor = when {
             detectorStatus.startsWith("Grabando")            -> Color(0xFF26D9A0)
             detectorStatus.startsWith("Obj.")                -> Color(0xFF4FC3F7)
