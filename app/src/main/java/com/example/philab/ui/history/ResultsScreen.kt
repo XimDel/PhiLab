@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.House
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -43,7 +45,8 @@ private val DividerColor  = Color(0xFFDDDDE8)
 fun ResultsScreen(
     results: ExperimentResults,
     onBack: () -> Unit,
-    onExport: () -> Unit
+    onExport: () -> Unit,
+    onNavigateHome: () -> Unit
 ) {
     val unit = results.unit
 
@@ -86,138 +89,169 @@ fun ResultsScreen(
             }
         ) { padding ->
 
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
             ) {
 
-                // Advertencia sin calibración
-                if (!results.isCalibrated) {
+                // ── Contenido scrolleable ────────────────────────────────────
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+                ) {
+
+                    // Advertencia sin calibración
+                    if (!results.isCalibrated) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xCCFFF8E1))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("⚠", fontSize = 13.sp)
+                                Text(
+                                    text = "Sin calibración ArUco — valores en píxeles. " +
+                                            "Para obtener unidades reales (cm) usa un marcador ArUco de tamaño conocido.",
+                                    color = Color(0xFF795548),
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Información de la sesión
                     item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xCCFFF8E1))
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text("⚠", fontSize = 13.sp)
+                        SectionTitle("Información de la sesión")
+                        MetaCard {
+                            MetaRow("Objeto",    results.selectedLabel)
+                            RowDivider()
+                            MetaRow("Fecha",   dateFormatter.format(Date(results.recordedAt)))
+                            RowDivider()
+                            MetaRow("Duración",  formatDuration(results.durationMs))
+                            RowDivider()
+                            MetaRow("Muestras",  "${results.sampleCount} pts")
+                            RowDivider()
+                            MetaRow("Frecuencia real", "${"%.1f".format(results.sampleRateHz)} Hz")
+                            RowDivider()
+                            MetaRow("Unidad",    unit)
+                            if (results.isCalibrated) {
+                                RowDivider()
+                                MetaRow("Escala", "${"%.4f".format(results.cmPerPx)} cm/px")
+                            }
+                        }
+                    }
+
+                    // Resultados cinemáticos
+                    item {
+                        SectionTitle("Resultados cinemáticos")
+                        MetaCard {
+                            MetaRow("Distancia total",   "${"%.2f".format(results.totalDistanceCm)} $unit")
+                            RowDivider()
+                            MetaRow("Desplazamiento",    "${"%.2f".format(results.displacementCm)} $unit")
+                            RowDivider()
+                            MetaRow("Velocidad media",   "${"%.2f".format(results.avgSpeedCmS)} $unit/s")
+                            RowDivider()
+                            MetaRow("Aceleración media", "${"%.2f".format(results.avgAccelCmS2)} $unit/s²")
+                        }
+                    }
+
+                    // Tabla de datos
+                    item {
+                        SectionTitle("Datos capturados (${results.sampleCount} puntos)")
+                    }
+
+                    item {
+                        TableHeader(unit = unit)
+                    }
+
+                    val displayPoints = if (results.points.size > 500) {
+                        val step = results.points.size / 500
+                        results.points.filterIndexed { index, _ -> index % step == 0 }
+                    } else results.points
+
+                    itemsIndexed(displayPoints) { index, point ->
+                        TableRow(
+                            index = index + 1,
+                            t = point.tSeconds,
+                            x = point.xCm,
+                            y = point.yCm,
+                            isEven = index % 2 == 0,
+                            isLast = index == displayPoints.lastIndex
+                        )
+                    }
+
+                    if (results.points.size > 500) {
+                        item {
                             Text(
-                                text = "Sin calibración ArUco — valores en píxeles. " +
-                                        "Para obtener unidades reales (cm) usa un marcador ArUco de tamaño conocido.",
-                                color = Color(0xFF795548),
-                                fontSize = 12.sp
+                                text = "Mostrando 500 de ${results.points.size} puntos. " +
+                                        "Exporta a CSV para ver todos.",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp)
                             )
                         }
                     }
                 }
 
-                // Información de la sesión
-                item {
-                    SectionTitle("Información de la sesión")
-                    MetaCard {
-                        MetaRow("Objeto",    results.selectedLabel)
-                        RowDivider()
-                        MetaRow("Fecha",   dateFormatter.format(Date(results.recordedAt)))
-                        RowDivider()
-                        MetaRow("Duración",  formatDuration(results.durationMs))
-                        RowDivider()
-                        MetaRow("Muestras",  "${results.sampleCount} pts")
-                        RowDivider()
-                        MetaRow("Frecuencia real", "${"%.1f".format(results.sampleRateHz)} Hz")
-                        RowDivider()
-                        MetaRow("Unidad",    unit)
-                        if (results.isCalibrated) {
-                            RowDivider()
-                            MetaRow("Escala", "${"%.4f".format(results.cmPerPx)} cm/px")
-                        }
-                    }
-                }
-
-                // Resultados cinemáticos
-                item {
-                    SectionTitle("Resultados cinemáticos")
-                    MetaCard {
-                        MetaRow("Distancia total",     "${"%.2f".format(results.totalDistanceCm)} $unit")
-                        RowDivider()
-                        MetaRow("Desplazamiento", "${"%.2f".format(results.displacementCm)} $unit")
-                        RowDivider()
-                        MetaRow("Velocidad media",     "${"%.2f".format(results.avgSpeedCmS)} $unit/s")
-                        RowDivider()
-                        MetaRow("Aceleración media",   "${"%.2f".format(results.avgAccelCmS2)} $unit/s²")
-                    }
-                }
-
-                // Tabla de datos
-                item {
-                    SectionTitle("Datos capturados (${results.sampleCount} puntos)")
-                }
-
-                item {
-                    TableHeader(unit = unit)
-                }
-
-                val displayPoints = if (results.points.size > 500) {
-                    val step = results.points.size / 500
-                    results.points.filterIndexed { index, _ -> index % step == 0 }
-                } else results.points
-
-                itemsIndexed(displayPoints) { index, point ->
-                    TableRow(
-                        index = index + 1,
-                        t = point.tSeconds,
-                        x = point.xCm,
-                        y = point.yCm,
-                        isEven = index % 2 == 0,
-                        isLast = index == displayPoints.lastIndex
-                    )
-                }
-
-                if (results.points.size > 500) {
-                    item {
-                        Text(
-                            text = "Mostrando 500 de ${results.points.size} puntos. " +
-                                    "Exporta a CSV para ver todos.",
-                            color = TextMuted,
-                            fontSize = 11.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp)
-                        )
-                    }
-                }
-
-                item {
-                    Spacer(Modifier.height(4.dp))
-                    Button(
-                        onClick = onExport,
+                // ── Botón fijo en la parte inferior ─────────────────────────
+                Surface(
+                    shadowElevation = 8.dp,
+                    color = Color.White.copy(alpha = 0.95f)
+                ) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            "Exportar (PDF / CSV)",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = Color.White
-                        )
+                        IconButton(
+                            onClick = onNavigateHome,
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFFEEEEF2))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Home,
+                                contentDescription = "Ir al inicio",
+                                tint = Color(0xFF1D9E75),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        Button(
+                            onClick = onExport,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
+                        ) {
+                            Text(
+                                "Exportar (PDF / CSV)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color.White
+                            )
+                        }
                     }
-                    Spacer(Modifier.height(16.dp))
                 }
             }
         }
     }
 }
 
-// Tabla
+// ── Tabla ────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun TableHeader(unit: String) {
@@ -277,7 +311,7 @@ private fun RowScope.TableCell(
     )
 }
 
-// Componentes reutilizables
+// ── Componentes reutilizables ────────────────────────────────────────────────
 
 @Composable
 private fun SectionTitle(text: String) {

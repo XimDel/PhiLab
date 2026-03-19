@@ -99,8 +99,11 @@ fun AppNavHost() {
                 ResultsScreen(
                     results = results,
                     onBack = { navController.popBackStack() },
-                    onExport = {
-                        // navController.navigate(Routes.EXPORT)
+                    onExport = { },
+                    onNavigateHome = {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.HOME) { inclusive = true }
+                        }
                     }
                 )
             } else {
