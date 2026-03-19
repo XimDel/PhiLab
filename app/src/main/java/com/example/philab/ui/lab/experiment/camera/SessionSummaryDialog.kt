@@ -20,6 +20,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.philab.domain.experiment.ExperimentResults
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.TextFieldValue
 
 private val BgCard        = Color(0xFFFFFFFF)
 private val BgRow         = Color(0xFFF7F7FA)
@@ -36,9 +52,14 @@ private val DividerColor  = Color(0xFFEEEEF2)
 @Composable
 fun SessionSummaryDialog(
     results: ExperimentResults,
-    onSave: () -> Unit,
+    onSave: (label: String) -> Unit,
     onRestart: () -> Unit
 ) {
+    var editingLabel by remember { mutableStateOf(false) }
+    var labelValue by remember { mutableStateOf(TextFieldValue(results.selectedLabel)) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
     Dialog(onDismissRequest = {}) {
         Card(
             shape = RoundedCornerShape(24.dp),
@@ -92,15 +113,59 @@ fun SessionSummaryDialog(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(AccentGreen.copy(alpha = 0.1f))
-                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                        .background(
+                            if (editingLabel) AccentGreen.copy(alpha = 0.18f)
+                            else AccentGreen.copy(alpha = 0.10f)
+                        )
+                        .clickable {
+                            if (!editingLabel) {
+                                editingLabel = true
+                                labelValue = TextFieldValue("")
+                            }
+                        }
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = results.selectedLabel,
-                        color = AccentGreen,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    if (editingLabel) {
+                        BasicTextField(
+                            value = labelValue,
+                            onValueChange = { labelValue = it },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                color = AccentGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            ),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = {
+                                editingLabel = false
+                                focusManager.clearFocus()
+                            }),
+                            modifier = Modifier
+                                .focusRequester(focusRequester)
+                                .widthIn(min = 60.dp)
+                        )
+                        LaunchedEffect(Unit) { focusRequester.requestFocus() }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = labelValue.text,
+                                color = AccentGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = "Editar nombre",
+                                tint = AccentGreen.copy(alpha = 0.6f),
+                                modifier = Modifier.size(11.dp)
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(20.dp))
@@ -209,7 +274,10 @@ fun SessionSummaryDialog(
                     }
 
                     Button(
-                        onClick = onSave,
+                        onClick = {
+                            focusManager.clearFocus()
+                            onSave(labelValue.text.trim().ifBlank { results.selectedLabel })
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),

@@ -168,7 +168,10 @@ fun CameraScreen(
         viewModel.experimentResults?.let { results ->
             SessionSummaryDialog(
                 results = results,
-                onSave = { onNavigateToResults() },
+                onSave = { editedLabel ->
+                    viewModel.applyEditedLabel(editedLabel)
+                    onNavigateToResults()
+                },
                 onRestart = { viewModel.clearExperimentResults() }
             )
         }

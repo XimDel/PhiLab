@@ -92,6 +92,10 @@ class CameraViewModel : ViewModel() {
 
     private var timerJob: Job? = null
 
+    fun applyEditedLabel(label: String) {
+        experimentResults = experimentResults?.copy(selectedLabel = label)
+    }
+
     fun onUserTap(touchOffset: Offset) {
         val currentDetections = detections
         if (currentDetections.isEmpty()) return
