@@ -117,6 +117,9 @@ fun AppNavHost() {
             )
         }
 
-        composable(Routes.HISTORY) { HistoryScreen() }
+        composable(Routes.HISTORY) { HistoryScreen(
+            onBack = { navController.popBackStack() }
+        )
+        }
     }
 }
