@@ -6,7 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Tabla de puntos capturados.
+ * Tabla de puntos capturados
  * Cada fila pertenece a una sesión (FK → sessions.idSession).
  * ON DELETE CASCADE: al borrar una sesión se borran sus puntos automáticamente.
  */
