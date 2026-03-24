@@ -21,16 +21,17 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.philab.R
 import com.example.philab.data.local.database.PhiLabDatabase
 import com.example.philab.data.local.entity.SessionEntity
 import com.example.philab.data.repository.SessionRepository
 import com.example.philab.ui.theme.AppDrawables
+import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -46,6 +47,10 @@ private val BgRowEven     = Color.White.copy(alpha = 0.70f)
 private val BgRowOdd      = Color.White.copy(alpha = 0.50f)
 private val BgHeader      = Color.White.copy(alpha = 0.85f)
 private val BorderColor   = Color(0xFFCCCCDD)
+
+// Altura de cada fila (~20dp texto + 10dp*2 padding vertical = ~40dp)
+// 6 filas × 40dp = 240dp, más un poco de margen = 252dp
+private val TABLE_MAX_HEIGHT = 252.dp
 
 @Composable
 fun HistoryScreen(
@@ -78,29 +83,30 @@ fun HistoryScreen(
                 contentScale = ContentScale.Crop
             )
 
+            // ── Top bar ───────────────────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 26.dp, start = 4.dp, end = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver",
+                        tint = Color.Black
+                    )
+                }
+            }
+
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                // ── Top bar ──────────────────────────────────────────────────
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 26.dp, start = 14.dp, end = 14.dp),
-                    horizontalArrangement = Arrangement.Start,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.Black
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(75.dp))
+                Spacer(modifier = Modifier.height(150.dp))
 
                 Text(
                     text = "HISTORIAL DE\nEXPERIMENTOS",
@@ -109,17 +115,16 @@ fun HistoryScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black,
                     textAlign = TextAlign.Center,
-                    lineHeight = 52.sp
+                    lineHeight = 36.sp
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // ── Tabla ────────────────────────────────────────────────────
+                // ── Tabla ─────────────────────────────────────────────────────
                 if (sessions.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color.White.copy(alpha = 0.6f))
                             .padding(vertical = 32.dp),
@@ -136,18 +141,17 @@ fun HistoryScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
                     ) {
-                        // Cabecera
+                        // Cabecera fija
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(BgHeader)
                                 .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
-                            Spacer(modifier = Modifier.width(32.dp))  // hueco checkbox
+                            Spacer(modifier = Modifier.width(32.dp))
                             Text(
                                 text = "Nombre experimento",
                                 modifier = Modifier.weight(1f),
@@ -165,20 +169,25 @@ fun HistoryScreen(
 
                         HorizontalDivider(color = BorderColor)
 
-                        // Filas
-                        LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                        // Filas: crece libremente hasta TABLE_MAX_HEIGHT,
+                        // luego activa scroll interno. Con 1-5 filas la tabla
+                        // se ajusta al contenido; con 6+ hace scroll.
+                        LazyColumn(modifier = Modifier.heightIn(max = TABLE_MAX_HEIGHT)) {
                             itemsIndexed(sessions) { index, session ->
                                 val isSelected = selectedId == session.idSession
-                                val bg = if (isSelected)
-                                    AccentGreen.copy(alpha = 0.15f)
-                                else if (index % 2 == 0) BgRowEven else BgRowOdd
+                                val bg = when {
+                                    isSelected       -> AccentGreen.copy(alpha = 0.15f)
+                                    index % 2 == 0   -> BgRowEven
+                                    else             -> BgRowOdd
+                                }
 
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(bg)
                                         .clickable {
-                                            selectedId = if (isSelected) null else session.idSession
+                                            selectedId =
+                                                if (isSelected) null else session.idSession
                                         }
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -192,7 +201,11 @@ fun HistoryScreen(
                                                 if (isSelected) AccentGreen
                                                 else Color.White.copy(alpha = 0.8f)
                                             )
-                                            .border(1.dp, if (isSelected) AccentGreen else BorderColor, RoundedCornerShape(4.dp)),
+                                            .border(
+                                                1.dp,
+                                                if (isSelected) AccentGreen else BorderColor,
+                                                RoundedCornerShape(4.dp)
+                                            ),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         if (isSelected) {
@@ -232,11 +245,9 @@ fun HistoryScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // ── Botones de acción ────────────────────────────────────────
+                // ── Botones de acción ─────────────────────────────────────────
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
                 ) {
                     ActionButton(
@@ -263,7 +274,7 @@ fun HistoryScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // ── Generar reporte ──────────────────────────────────────────
+                // ── Generar reporte ───────────────────────────────────────────
                 Text(
                     text = "Generar reporte:",
                     fontSize = 13.sp,
@@ -296,7 +307,7 @@ fun HistoryScreen(
         }
     }
 
-    // ── Diálogo renombrar ────────────────────────────────────────────────────
+    // ── Diálogo renombrar ─────────────────────────────────────────────────────
     if (showRenameDialog && selectedId != null) {
         val session = sessions.firstOrNull { it.idSession == selectedId }
         if (session != null) {
@@ -311,13 +322,14 @@ fun HistoryScreen(
         }
     }
 
-    // ── Diálogo confirmar eliminación ────────────────────────────────────────
+    // ── Diálogo confirmar eliminación ─────────────────────────────────────────
     if (showDeleteConfirm && selectedId != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("Eliminar experimento") },
             text = {
-                val name = sessions.firstOrNull { it.idSession == selectedId }?.experimentName ?: ""
+                val name =
+                    sessions.firstOrNull { it.idSession == selectedId }?.experimentName ?: ""
                 Text("¿Eliminar \"$name\"? Esta acción no se puede deshacer.")
             },
             confirmButton = {
@@ -351,8 +363,15 @@ private fun ActionButton(
             modifier = Modifier
                 .size(52.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(if (enabled) color.copy(alpha = 0.12f) else Color.Gray.copy(alpha = 0.08f))
-                .border(1.5.dp, if (enabled) color.copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                .background(
+                    if (enabled) color.copy(alpha = 0.12f)
+                    else Color.Gray.copy(alpha = 0.08f)
+                )
+                .border(
+                    1.5.dp,
+                    if (enabled) color.copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.2f),
+                    RoundedCornerShape(14.dp)
+                )
         ) {
             Icon(
                 imageVector = icon,
@@ -407,5 +426,16 @@ private fun RenameDialog(
                 }
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HistoryModuleScreenPreview() {
+    PhiLabTheme {
+        HistoryScreen(
+            onBack = {},
+            onOpenSession = {}
+        )
     }
 }
