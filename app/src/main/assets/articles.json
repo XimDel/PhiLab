@@ -27,7 +27,7 @@
     "id": "tiempo",
     "title": "Tiempo",
     "image": "imagetest_article5",
-    "content": "El tiempo es una magnitud física fundamental que permite medir la duración de los fenómenos y el orden en que ocurren los eventos.\n\nEn el Sistema Internacional (SI), se mide en segundos (s). En mecánica, el tiempo es la variable independiente que permite analizar cómo cambian la posición, la velocidad y la aceleración."
+    "content": "El tiempo es una magnitud física que permite medir la duración de los fenómenos y el orden en que ocurren los eventos.\n\nEn el Sistema Internacional (SI), se mide en segundos (s). En mecánica, el tiempo es la variable independiente que permite analizar cómo cambian la posición, la velocidad y la aceleración."
   },
   {
     "id": "posicion",
