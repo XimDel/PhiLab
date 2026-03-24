@@ -4,7 +4,6 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import com.example.philab.data.local.entity.PointEntity
 import com.example.philab.data.local.entity.SessionEntity
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +32,14 @@ interface SessionDao {
     /** Puntos de una sesión, en orden cronológico. */
     @Query("SELECT * FROM points WHERE idSession = :id ORDER BY `index` ASC")
     suspend fun getPointsBySession(id: Long): List<PointEntity>
+
+    /**
+     * Retorna el mayor idSession registrado hasta ahora (incluyendo eliminados,
+     * ya que sqlite_sequence guarda el último autoincrement usado).
+     * Devuelve 0 si la tabla está vacía.
+     */
+    @Query("SELECT COALESCE(MAX(idSession), 0) FROM sessions")
+    suspend fun getMaxSessionId(): Long
 
     // ── Eliminar ──────────────────────────────────────────────────────────────
 

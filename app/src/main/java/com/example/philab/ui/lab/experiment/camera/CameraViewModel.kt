@@ -34,13 +34,6 @@ data class SelectedObject(
     val centerY: Float
 )
 
-/**
- * Cambios respecto a la versión anterior:
- *  - Hereda de AndroidViewModel (necesita Application para Room).
- *  - Inyecta SessionRepository.
- *  - saveSession(editedLabel) persiste la sesión en Room antes de navegar.
- *  - applyEditedLabel() sigue disponible para actualizar el estado en memoria.
- */
 class CameraViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: SessionRepository by lazy {
@@ -99,8 +92,6 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         private set
     var trackingDebugInfo by mutableStateOf("Tracking: Idle")
         private set
-
-    /** true mientras Room está escribiendo, para mostrar un loader si se quiere. */
     var isSaving by mutableStateOf(false)
         private set
 
@@ -109,28 +100,30 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     // ── Guardar en Room ───────────────────────────────────────────────────────
 
     /**
-     * Persiste la sesión con el label editado y luego ejecuta [onDone]
-     * (normalmente la navegación a ResultsScreen).
+     * Persiste la sesión con el nombre de experimento y el label del objeto
+     * elegidos por el usuario en SessionSummaryDialog.
+     * Actualiza experimentResults en memoria y ejecuta onDone al terminar.
      */
-    fun saveSession(editedLabel: String, onDone: () -> Unit) {
+    fun saveSession(
+        experimentName: String,
+        editedLabel: String,
+        onDone: () -> Unit
+    ) {
         val results = experimentResults ?: return
-        // Actualizar en memoria con el label editado
         experimentResults = results.copy(selectedLabel = editedLabel)
         isSaving = true
         viewModelScope.launch {
             try {
-                repository.saveSession(experimentResults!!, editedLabel)
+                repository.saveSession(
+                    results = experimentResults!!,
+                    experimentName = experimentName,
+                    editedLabel = editedLabel
+                )
             } finally {
                 isSaving = false
                 onDone()
             }
         }
-    }
-
-    // ── Mantener compatibilidad con flujo anterior ────────────────────────────
-
-    fun applyEditedLabel(label: String) {
-        experimentResults = experimentResults?.copy(selectedLabel = label)
     }
 
     // ── Resto del ViewModel sin cambios ───────────────────────────────────────
@@ -140,33 +133,24 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun onUserTap(touchOffset: Offset) {
         val currentDetections = detections
         if (currentDetections.isEmpty()) return
-
         val viewW = previewSize.width.toFloat()
         val viewH = previewSize.height.toFloat()
         if (viewW == 0f || viewH == 0f) return
-
         val srcW = currentDetections.first().sourceWidth.toFloat()
         val srcH = currentDetections.first().sourceHeight.toFloat()
-
         val scale = maxOf(viewW / srcW, viewH / srcH)
         val dx = (viewW - srcW * scale) / 2f
         val dy = (viewH - srcH * scale) / 2f
-
         val tapX = (touchOffset.x - dx) / scale
         val tapY = (touchOffset.y - dy) / scale
-
         val tapped = currentDetections
-            .filter { det ->
-                tapX in det.left..det.right && tapY in det.top..det.bottom
-            }
+            .filter { det -> tapX in det.left..det.right && tapY in det.top..det.bottom }
             .minByOrNull { det ->
                 val cx = (det.left + det.right) / 2f
                 val cy = (det.top + det.bottom) / 2f
                 hypot((cx - tapX).toDouble(), (cy - tapY).toDouble())
             }
-
         if (tapped == null) { clearSelectedObject(); return }
-
         selectedObject = SelectedObject(
             label = tapped.label,
             centerX = (tapped.left + tapped.right) / 2f,
@@ -188,9 +172,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun updateTrackedDetection(detection: UiDetection?) {
         trackedDetection = detection
-        if (sessionRecorder.isActive) {
-            livePointCount = sessionRecorder.pointCount
-        }
+        if (sessionRecorder.isActive) livePointCount = sessionRecorder.pointCount
     }
 
     fun selectModel(model: ModelOption) { selectedModel = model }
@@ -239,7 +221,6 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         detectorStatus = "Grabando"
         experimentResults = null
         livePointCount = 0
-
         val cal = calibrationState as? CalibrationState.Calibrated
         sessionRecorder.start(
             label = selectedObject?.label ?: "Object",

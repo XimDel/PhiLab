@@ -1,41 +1,36 @@
 package com.example.philab.ui.lab.experiment.camera
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.philab.domain.experiment.ExperimentResults
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.input.TextFieldValue
 
 private val BgCard        = Color(0xFFFFFFFF)
 private val BgRow         = Color(0xFFF7F7FA)
@@ -52,12 +47,19 @@ private val DividerColor  = Color(0xFFEEEEF2)
 @Composable
 fun SessionSummaryDialog(
     results: ExperimentResults,
-    onSave: (label: String) -> Unit,
+    onSave: (experimentName: String, label: String) -> Unit,
     onRestart: () -> Unit
 ) {
-    var editingLabel by remember { mutableStateOf(false) }
+    // ── Estado editable: nombre del experimento ───────────────────────────────
+    var experimentNameValue by remember { mutableStateOf(TextFieldValue("Experimento")) }
+    var editingExperimentName by remember { mutableStateOf(false) }
+    val experimentNameFocusRequester = remember { FocusRequester() }
+
+    // ── Estado editable: nombre del objeto ───────────────────────────────────
     var labelValue by remember { mutableStateOf(TextFieldValue(results.selectedLabel)) }
-    val focusRequester = remember { FocusRequester() }
+    var editingLabel by remember { mutableStateOf(false) }
+    val labelFocusRequester = remember { FocusRequester() }
+
     val focusManager = LocalFocusManager.current
 
     Dialog(onDismissRequest = {}) {
@@ -79,7 +81,7 @@ fun SessionSummaryDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                // Header
+                // ── Header: ícono ─────────────────────────────────────────────
                 Box(
                     modifier = Modifier
                         .size(56.dp)
@@ -101,15 +103,25 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(10.dp))
 
-                Text(
-                    text = "Experimento finalizado",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
+                // ── Nombre del experimento (editable, reemplaza "Experimento finalizado") ──
+                EditableTitle(
+                    value = experimentNameValue,
+                    editing = editingExperimentName,
+                    focusRequester = experimentNameFocusRequester,
+                    onStartEdit = {
+                        editingExperimentName = true
+                        experimentNameValue = TextFieldValue("")
+                    },
+                    onValueChange = { experimentNameValue = it },
+                    onDone = {
+                        editingExperimentName = false
+                        focusManager.clearFocus()
+                    }
                 )
 
                 Spacer(Modifier.height(6.dp))
 
+                // ── Chip editable: nombre del objeto ──────────────────────────
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -143,10 +155,10 @@ fun SessionSummaryDialog(
                                 focusManager.clearFocus()
                             }),
                             modifier = Modifier
-                                .focusRequester(focusRequester)
+                                .focusRequester(labelFocusRequester)
                                 .widthIn(min = 60.dp)
                         )
-                        LaunchedEffect(Unit) { focusRequester.requestFocus() }
+                        LaunchedEffect(Unit) { labelFocusRequester.requestFocus() }
                     } else {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -160,7 +172,7 @@ fun SessionSummaryDialog(
                             )
                             Icon(
                                 imageVector = Icons.Filled.Edit,
-                                contentDescription = "Editar nombre",
+                                contentDescription = "Editar objeto",
                                 tint = AccentGreen.copy(alpha = 0.6f),
                                 modifier = Modifier.size(11.dp)
                             )
@@ -170,7 +182,7 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(20.dp))
 
-                // Métricas
+                // ── Métricas ──────────────────────────────────────────────────
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -226,7 +238,7 @@ fun SessionSummaryDialog(
                     )
                 }
 
-                // Advertencia sin calibración
+                // ── Advertencia sin calibración ───────────────────────────────
                 if (!results.isCalibrated) {
                     Spacer(Modifier.height(12.dp))
                     Row(
@@ -254,7 +266,7 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(20.dp))
 
-                // Acciones
+                // ── Acciones ──────────────────────────────────────────────────
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -276,15 +288,19 @@ fun SessionSummaryDialog(
                     Button(
                         onClick = {
                             focusManager.clearFocus()
-                            onSave(labelValue.text.trim().ifBlank { results.selectedLabel })
+                            val finalExperimentName = experimentNameValue.text
+                                .trim()
+                                .ifBlank { "Experimento" }
+                            val finalLabel = labelValue.text
+                                .trim()
+                                .ifBlank { results.selectedLabel }
+                            onSave(finalExperimentName, finalLabel)
                         },
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentGreen
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
                     ) {
                         Text("Guardar", fontWeight = FontWeight.Bold, color = Color.White)
                     }
@@ -293,6 +309,59 @@ fun SessionSummaryDialog(
         }
     }
 }
+
+// ── Título editable (reemplaza "Experimento finalizado") ──────────────────────
+
+@Composable
+private fun EditableTitle(
+    value: TextFieldValue,
+    editing: Boolean,
+    focusRequester: FocusRequester,
+    onStartEdit: () -> Unit,
+    onValueChange: (TextFieldValue) -> Unit,
+    onDone: () -> Unit
+) {
+    if (editing) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = TextStyle(
+                color = TextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onDone() }),
+            modifier = Modifier
+                .focusRequester(focusRequester)
+                .widthIn(min = 120.dp)
+        )
+        LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    } else {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.clickable { onStartEdit() }
+        ) {
+            Text(
+                text = value.text.ifBlank { "Experimento" },
+                color = TextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = "Editar nombre",
+                tint = TextSecondary.copy(alpha = 0.6f),
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
+// ── Componentes internos ──────────────────────────────────────────────────────
 
 @Composable
 private fun MetricRow(
@@ -322,32 +391,20 @@ private fun MetricRow(
                 modifier = Modifier.size(18.dp)
             )
         }
-
         Spacer(Modifier.width(12.dp))
-
         Text(
             text = label,
             color = TextSecondary,
             fontSize = 13.sp,
             modifier = Modifier.weight(1f)
         )
-
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(
-                text = value,
-                color = TextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = value, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             if (unit.isNotEmpty()) {
-                Text(
-                    text = unit,
-                    color = TextSecondary,
-                    fontSize = 11.sp
-                )
+                Text(text = unit, color = TextSecondary, fontSize = 11.sp)
             }
         }
     }

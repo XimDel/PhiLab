@@ -174,10 +174,8 @@ fun CameraScreen(
         viewModel.experimentResults?.let { results ->
             SessionSummaryDialog(
                 results = results,
-                onSave = { editedLabel ->
-                    // ── CAMBIO CLAVE ──────────────────────────────────────────
-                    // Guarda en Room y navega solo cuando Room confirma el INSERT.
-                    viewModel.saveSession(editedLabel) {
+                onSave = { experimentName, editedLabel ->
+                    viewModel.saveSession(experimentName, editedLabel) {
                         onNavigateToResults()
                     }
                 },

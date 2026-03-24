@@ -12,13 +12,13 @@ data class SessionEntity(
     @PrimaryKey(autoGenerate = true)
     val idSession: Long = 0,
 
-    val experimentName: String,       // selectedLabel editado por el usuario
-    val selectedLabel: String,        // label original del modelo
+    val experimentName: String,
+    val selectedLabel: String,
     val recordedAt: Long,
     val durationMs: Long,
     val sampleCount: Int,
     val sampleRateHz: Float,
-    val unit: String,                 // "cm" o "px"
+    val unit: String,
     val cmPerPx: Float,
 
     // Cinemática
