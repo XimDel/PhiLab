@@ -94,8 +94,6 @@ fun ResultsScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-
-                // ── Contenido scrolleable ────────────────────────────────────
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
@@ -203,7 +201,6 @@ fun ResultsScreen(
                     }
                 }
 
-                // ── Botón fijo en la parte inferior ─────────────────────────
                 Surface(
                     shadowElevation = 8.dp,
                     color = Color.White.copy(alpha = 0.95f)
@@ -251,7 +248,7 @@ fun ResultsScreen(
     }
 }
 
-// ── Tabla ────────────────────────────────────────────────────────────────────
+// Tabla
 
 @Composable
 private fun TableHeader(unit: String) {
@@ -311,7 +308,7 @@ private fun RowScope.TableCell(
     )
 }
 
-// ── Componentes reutilizables ────────────────────────────────────────────────
+// Componentes reutilizables
 
 @Composable
 private fun SectionTitle(text: String) {

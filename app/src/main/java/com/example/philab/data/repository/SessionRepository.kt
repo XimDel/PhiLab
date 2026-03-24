@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 class SessionRepository(private val dao: SessionDao) {
 
-    // ── Guardar ───────────────────────────────────────────────────────────────
+    // Guardar
 
     /**
      * Persiste una sesión completa (metadatos + puntos).
@@ -56,7 +56,7 @@ class SessionRepository(private val dao: SessionDao) {
         return sessionId
     }
 
-    // ── Consultar ─────────────────────────────────────────────────────────────
+    // Consultar
 
     fun getAllSessions(): Flow<List<SessionEntity>> = dao.getAllSessions()
 
@@ -92,7 +92,7 @@ class SessionRepository(private val dao: SessionDao) {
         )
     }
 
-    // ── Eliminar / Renombrar ──────────────────────────────────────────────────
+    //Eliminar / Renombrar
 
     suspend fun deleteSession(id: Long) = dao.deleteSession(id)
 

@@ -37,7 +37,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// ── Paleta ────────────────────────────────────────────────────────────────────
+// Paleta
 private val AccentGreen   = Color(0xFF1D9E75)
 private val AccentRed     = Color(0xFFE53935)
 private val AccentBlue    = Color(0xFF2196F3)
@@ -47,9 +47,6 @@ private val BgRowEven     = Color.White.copy(alpha = 0.70f)
 private val BgRowOdd      = Color.White.copy(alpha = 0.50f)
 private val BgHeader      = Color.White.copy(alpha = 0.85f)
 private val BorderColor   = Color(0xFFCCCCDD)
-
-// Altura de cada fila (~20dp texto + 10dp*2 padding vertical = ~40dp)
-// 6 filas × 40dp = 240dp, más un poco de margen = 252dp
 private val TABLE_MAX_HEIGHT = 252.dp
 
 @Composable
@@ -83,7 +80,6 @@ fun HistoryScreen(
                 contentScale = ContentScale.Crop
             )
 
-            // ── Top bar ───────────────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -120,7 +116,7 @@ fun HistoryScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // ── Tabla ─────────────────────────────────────────────────────
+                // Tabla
                 if (sessions.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -144,7 +140,6 @@ fun HistoryScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
                     ) {
-                        // Cabecera fija
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -169,9 +164,6 @@ fun HistoryScreen(
 
                         HorizontalDivider(color = BorderColor)
 
-                        // Filas: crece libremente hasta TABLE_MAX_HEIGHT,
-                        // luego activa scroll interno. Con 1-5 filas la tabla
-                        // se ajusta al contenido; con 6+ hace scroll.
                         LazyColumn(modifier = Modifier.heightIn(max = TABLE_MAX_HEIGHT)) {
                             itemsIndexed(sessions) { index, session ->
                                 val isSelected = selectedId == session.idSession
@@ -192,7 +184,6 @@ fun HistoryScreen(
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Checkbox visual
                                     Box(
                                         modifier = Modifier
                                             .size(20.dp)
@@ -245,7 +236,7 @@ fun HistoryScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // ── Botones de acción ─────────────────────────────────────────
+                //Botones de acción
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
@@ -274,7 +265,7 @@ fun HistoryScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // ── Generar reporte ───────────────────────────────────────────
+                // Generar reporte
                 Text(
                     text = "Generar reporte:",
                     fontSize = 13.sp,
@@ -307,7 +298,7 @@ fun HistoryScreen(
         }
     }
 
-    // ── Diálogo renombrar ─────────────────────────────────────────────────────
+    // Diálogo renombrar
     if (showRenameDialog && selectedId != null) {
         val session = sessions.firstOrNull { it.idSession == selectedId }
         if (session != null) {
@@ -322,7 +313,7 @@ fun HistoryScreen(
         }
     }
 
-    // ── Diálogo confirmar eliminación ─────────────────────────────────────────
+    // Diálogo confirmar eliminación
     if (showDeleteConfirm && selectedId != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
@@ -346,7 +337,7 @@ fun HistoryScreen(
     }
 }
 
-// ── Componentes ───────────────────────────────────────────────────────────────
+// Componentes
 
 @Composable
 private fun ActionButton(

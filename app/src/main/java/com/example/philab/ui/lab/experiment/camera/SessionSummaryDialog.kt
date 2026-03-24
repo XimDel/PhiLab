@@ -50,12 +50,12 @@ fun SessionSummaryDialog(
     onSave: (experimentName: String, label: String) -> Unit,
     onRestart: () -> Unit
 ) {
-    // ── Estado editable: nombre del experimento ───────────────────────────────
+    // Estado editable: nombre del experimento
     var experimentNameValue by remember { mutableStateOf(TextFieldValue("Experimento")) }
     var editingExperimentName by remember { mutableStateOf(false) }
     val experimentNameFocusRequester = remember { FocusRequester() }
 
-    // ── Estado editable: nombre del objeto ───────────────────────────────────
+    // Estado editable: nombre del objeto
     var labelValue by remember { mutableStateOf(TextFieldValue(results.selectedLabel)) }
     var editingLabel by remember { mutableStateOf(false) }
     val labelFocusRequester = remember { FocusRequester() }
@@ -80,8 +80,6 @@ fun SessionSummaryDialog(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-
-                // ── Header: ícono ─────────────────────────────────────────────
                 Box(
                     modifier = Modifier
                         .size(56.dp)
@@ -103,7 +101,7 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(10.dp))
 
-                // ── Nombre del experimento (editable, reemplaza "Experimento finalizado") ──
+                //Nombre del experimento
                 EditableTitle(
                     value = experimentNameValue,
                     editing = editingExperimentName,
@@ -121,7 +119,7 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(6.dp))
 
-                // ── Chip editable: nombre del objeto ──────────────────────────
+                // Chip editable: nombre del objeto
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -182,7 +180,7 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(20.dp))
 
-                // ── Métricas ──────────────────────────────────────────────────
+                // Métricas
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -238,7 +236,7 @@ fun SessionSummaryDialog(
                     )
                 }
 
-                // ── Advertencia sin calibración ───────────────────────────────
+                // Advertencia sin calibración
                 if (!results.isCalibrated) {
                     Spacer(Modifier.height(12.dp))
                     Row(
@@ -266,7 +264,7 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(20.dp))
 
-                // ── Acciones ──────────────────────────────────────────────────
+                // Acciones
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -310,7 +308,7 @@ fun SessionSummaryDialog(
     }
 }
 
-// ── Título editable (reemplaza "Experimento finalizado") ──────────────────────
+//Título editable
 
 @Composable
 private fun EditableTitle(
@@ -361,7 +359,7 @@ private fun EditableTitle(
     }
 }
 
-// ── Componentes internos ──────────────────────────────────────────────────────
+// Componentes internos
 
 @Composable
 private fun MetricRow(

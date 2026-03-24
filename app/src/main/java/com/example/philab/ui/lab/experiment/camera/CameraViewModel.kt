@@ -97,7 +97,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     private var timerJob: Job? = null
 
-    // ── Guardar en Room ───────────────────────────────────────────────────────
+    //Guardar en Room
 
     /**
      * Persiste la sesión con el nombre de experimento y el label del objeto
@@ -125,8 +125,6 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
-
-    // ── Resto del ViewModel sin cambios ───────────────────────────────────────
 
     fun updateTrackingDebugInfo(value: String) { trackingDebugInfo = value }
 
@@ -203,7 +201,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         calibrationState = CalibrationState.Searching
     }
 
-    private fun stopCamera() {
+    fun stopCamera() {
         if (isRunning) stop()
         calibrationState = CalibrationState.Idle
         detections = emptyList()

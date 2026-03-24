@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SessionDao {
 
-    // ── Insertar ─────────────────────────────────────────────────────────────
+    // Insertar
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: SessionEntity): Long
@@ -19,7 +19,7 @@ interface SessionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPoints(points: List<PointEntity>)
 
-    // ── Consultar ─────────────────────────────────────────────────────────────
+    // Consultar
 
     /** Lista de sesiones para el historial, ordenadas de más reciente a más antigua. */
     @Query("SELECT * FROM sessions ORDER BY recordedAt DESC")
@@ -41,13 +41,13 @@ interface SessionDao {
     @Query("SELECT COALESCE(MAX(idSession), 0) FROM sessions")
     suspend fun getMaxSessionId(): Long
 
-    // ── Eliminar ──────────────────────────────────────────────────────────────
+    // Eliminar
 
     /** Elimina la sesión (los puntos se borran en cascada). */
     @Query("DELETE FROM sessions WHERE idSession = :id")
     suspend fun deleteSession(id: Long)
 
-    // ── Renombrar ─────────────────────────────────────────────────────────────
+    // Renombrar
 
     @Query("UPDATE sessions SET experimentName = :name WHERE idSession = :id")
     suspend fun renameSession(id: Long, name: String)

@@ -91,13 +91,13 @@ fun AppNavHost() {
 
         composable(Routes.CAMERA) {
             CameraScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.navigate(Routes.LAB_MODULE) },
                 onNavigateToResults = { navController.navigate(Routes.RESULTS) },
                 viewModel = cameraViewModel
             )
         }
 
-        // ── ResultsScreen desde sesión activa (flujo normal) ──────────────────
+        // ResultsScreen desde sesión activa
         composable(Routes.RESULTS) {
             val results = cameraViewModel.experimentResults
             if (results != null) {
@@ -116,7 +116,7 @@ fun AppNavHost() {
             }
         }
 
-        // ── ResultsScreen desde historial (por sessionId) ─────────────────────
+        // ResultsScreen desde historial
         composable(
             route = Routes.RESULTS_HISTORY,
             arguments = listOf(navArgument("sessionId") { type = NavType.LongType })

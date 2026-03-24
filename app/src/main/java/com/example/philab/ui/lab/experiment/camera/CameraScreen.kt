@@ -1,12 +1,5 @@
 package com.example.philab.ui.lab.experiment.camera
 
-// ── Cambio respecto a la versión anterior ────────────────────────────────────
-// SessionSummaryDialog.onSave ahora llama a viewModel.saveSession(label, onDone)
-// en lugar de applyEditedLabel + navegar directamente.
-// Esto persiste la sesión en Room antes de ir a ResultsScreen.
-// El resto del archivo es idéntico al original.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import android.view.Surface
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
@@ -16,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -73,6 +67,8 @@ fun CameraScreen(
     DisposableEffect(lifecycleOwner, cameraController) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.clearExperimentResults()
+                viewModel.stopCamera()
                 cameraController.bindCamera(
                     isCameraActive        = { viewModel.isCameraActive },
                     isRecording           = { viewModel.isRunning },
@@ -183,7 +179,6 @@ fun CameraScreen(
             )
         }
 
-        // Loader mientras Room escribe (opcional, muy breve en la práctica)
         if (viewModel.isSaving) {
             Box(
                 modifier = Modifier
@@ -196,8 +191,6 @@ fun CameraScreen(
         }
     }
 }
-
-// ── El resto de los composables privados es idéntico al original ──────────────
 
 @Composable
 private fun BoxScope.CameraStatsOverlay(
@@ -280,19 +273,43 @@ private fun CameraOverlay(
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
 
-        Card(
+        var showDebugInfo by remember { mutableStateOf(false) }
+        Box(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 12.dp, top = 12.dp, end = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.65f))
+                .align(Alignment.TopCenter)
+                .padding(top = 30.dp)
         ) {
-            Text(
-                text = trackingDebugInfo,
-                color = Color.White,
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
-                modifier = Modifier.padding(8.dp)
-            )
+            IconButton(
+                onClick = { showDebugInfo = !showDebugInfo },
+                modifier = Modifier
+                    .size(28.dp)
+                    .background(
+                        Color.Black.copy(alpha = 0.45f),
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = "Debug info",
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            DropdownMenu(
+                expanded = showDebugInfo,
+                onDismissRequest = { showDebugInfo = false }
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = trackingDebugInfo,
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp
+                        )
+                    },
+                    onClick = {}
+                )
+            }
         }
 
         Column(
