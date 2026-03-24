@@ -91,7 +91,7 @@ fun AppNavHost() {
 
         composable(Routes.CAMERA) {
             CameraScreen(
-                onBack = { navController.navigate(Routes.LAB_MODULE) },
+                onBack = { navController.popBackStack()  },
                 onNavigateToResults = { navController.navigate(Routes.RESULTS) },
                 viewModel = cameraViewModel
             )

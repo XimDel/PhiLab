@@ -45,20 +45,20 @@ class SessionRecorder {
         val durationS = durationMs / 1000f
         val sampleRateHz = points.size / durationS
 
-        var totalDistance = 0f
+        var distanciaTotal = 0f
         for (i in 1 until points.size) {
-            totalDistance += abs(points[i].xCm - points[i - 1].xCm)
+            distanciaTotal += abs(points[i].xCm - points[i - 1].xCm)
         }
 
-        val displacement = points.last().xCm - points.first().xCm
-        val avgSpeed = if (durationS > 0) totalDistance / durationS else 0f
+        val desplazamiento = points.last().xCm - points.first().xCm
+        val velocidadMedia = if (durationS > 0) distanciaTotal / durationS else 0f
 
-        val avgAccel = if (points.size >= 3) {
+        val aceleracionMedia = if (points.size >= 3) {
             val dt0 = (points[1].tMs - points[0].tMs) / 1000f
             val dt1 = (points.last().tMs - points[points.size - 2].tMs) / 1000f
-            val vFirst = if (dt0 > 0) (points[1].xCm - points[0].xCm) / dt0 else 0f
-            val vLast  = if (dt1 > 0) (points.last().xCm - points[points.size - 2].xCm) / dt1 else 0f
-            if (durationS > 0) (vLast - vFirst) / durationS else 0f
+            val vInicial = if (dt0 > 0) (points[1].xCm - points[0].xCm) / dt0 else 0f
+            val vFinal  = if (dt1 > 0) (points.last().xCm - points[points.size - 2].xCm) / dt1 else 0f
+            if (durationS > 0) (vFinal - vInicial) / durationS else 0f
         } else 0f
 
         return ExperimentResults(
@@ -70,10 +70,10 @@ class SessionRecorder {
             sampleCount   = points.size,
             sampleRateHz  = (sampleRateHz * 10).roundToInt() / 10f,
             cmPerPx       = currentCmPerPx,
-            totalDistanceCm  = totalDistance,
-            displacementCm   = displacement,
-            avgSpeedCmS      = avgSpeed,
-            avgAccelCmS2     = avgAccel,
+            totalDistanceCm  = distanciaTotal,
+            displacementCm   = desplazamiento,
+            avgSpeedCmS      = velocidadMedia,
+            avgAccelCmS2     = aceleracionMedia,
             minX = points.minOf { it.xCm },
             maxX = points.maxOf { it.xCm },
             minT = points.first().tSeconds,
