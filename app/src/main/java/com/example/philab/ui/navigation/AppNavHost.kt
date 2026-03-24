@@ -1,12 +1,15 @@
 package com.example.philab.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.philab.data.local.database.PhiLabDatabase
+import com.example.philab.data.repository.SessionRepository
 import com.example.philab.ui.camera.CameraPermissionScreen
 import com.example.philab.ui.lab.experiment.camera.CameraViewModel
 import com.example.philab.ui.history.HistoryScreen
@@ -18,11 +21,19 @@ import com.example.philab.ui.history.ResultsScreen
 import com.example.philab.ui.theory.article.ArticleScreen
 import com.example.philab.ui.theory.module.TheoryModuleScreen
 import com.example.philab.ui.lab.arucogenerator.ArucoGeneratorScreen
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
     val cameraViewModel: CameraViewModel = viewModel()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
 
@@ -48,19 +59,14 @@ fun AppNavHost() {
             arguments = listOf(navArgument("articleId") { type = NavType.StringType })
         ) { backStackEntry ->
             val articleId = backStackEntry.arguments?.getString("articleId") ?: ""
-            ArticleScreen(
-                articleId = articleId,
-                onBack = { navController.popBackStack() }
-            )
+            ArticleScreen(articleId = articleId, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.LAB_MODULE) {
             LabModuleScreen(
                 onBack = { navController.popBackStack() },
                 onStartExperiment = { navController.navigate(Routes.TIPS_MODULE) },
-                onHowItWorks = {
-                    // TODO
-                },
+                onHowItWorks = { },
                 onOpenArucoGenerator = { navController.navigate(Routes.ARUCO_GENERATOR) }
             )
         }
@@ -86,20 +92,19 @@ fun AppNavHost() {
         composable(Routes.CAMERA) {
             CameraScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToResults = {
-                    navController.navigate(Routes.RESULTS)
-                },
+                onNavigateToResults = { navController.navigate(Routes.RESULTS) },
                 viewModel = cameraViewModel
             )
         }
 
+        // ── ResultsScreen desde sesión activa (flujo normal) ──────────────────
         composable(Routes.RESULTS) {
             val results = cameraViewModel.experimentResults
             if (results != null) {
                 ResultsScreen(
                     results = results,
                     onBack = { navController.popBackStack() },
-                    onExport = { },
+                    onExport = { /* TODO */ },
                     onNavigateHome = {
                         navController.navigate(Routes.HOME) {
                             popUpTo(Routes.HOME) { inclusive = true }
@@ -111,14 +116,47 @@ fun AppNavHost() {
             }
         }
 
-        composable(Routes.ARUCO_GENERATOR) {
-            ArucoGeneratorScreen(
-                onBack = { navController.popBackStack() }
+        // ── ResultsScreen desde historial (por sessionId) ─────────────────────
+        composable(
+            route = Routes.RESULTS_HISTORY,
+            arguments = listOf(navArgument("sessionId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val sessionId = backStackEntry.arguments?.getLong("sessionId") ?: return@composable
+
+            var results by remember {
+                mutableStateOf<com.example.philab.domain.experiment.ExperimentResults?>(null)
+            }
+
+            LaunchedEffect(sessionId) {
+                val repo = SessionRepository(PhiLabDatabase.getInstance(context).sessionDao())
+                results = repo.getFullResults(sessionId)
+            }
+
+            results?.let {
+                ResultsScreen(
+                    results = it,
+                    onBack = { navController.popBackStack() },
+                    onExport = { },
+                    onNavigateHome = {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.HOME) { inclusive = true }
+                        }
+                    }
+                )
+            }
+        }
+
+        composable(Routes.HISTORY) {
+            HistoryScreen(
+                onBack = { navController.popBackStack() },
+                onOpenSession = { sessionId ->
+                    navController.navigate(Routes.resultsHistoryRoute(sessionId))
+                }
             )
         }
 
-        composable(Routes.HISTORY) { HistoryScreen(
-            onBack = { navController.popBackStack() }
-        )}
+        composable(Routes.ARUCO_GENERATOR) {
+            ArucoGeneratorScreen(onBack = { navController.popBackStack() })
+        }
     }
 }

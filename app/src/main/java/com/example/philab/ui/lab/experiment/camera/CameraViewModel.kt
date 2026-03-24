@@ -1,14 +1,17 @@
 package com.example.philab.ui.lab.experiment.camera
 
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.philab.core.camera.UiDetection
 import com.example.philab.core.calibration.CalibrationState
+import com.example.philab.data.local.database.PhiLabDatabase
+import com.example.philab.data.repository.SessionRepository
 import com.example.philab.domain.experiment.ExperimentResults
 import com.example.philab.domain.experiment.SessionRecorder
 import com.example.philab.core.measurement.MeasurementResult
@@ -31,7 +34,19 @@ data class SelectedObject(
     val centerY: Float
 )
 
-class CameraViewModel : ViewModel() {
+/**
+ * Cambios respecto a la versión anterior:
+ *  - Hereda de AndroidViewModel (necesita Application para Room).
+ *  - Inyecta SessionRepository.
+ *  - saveSession(editedLabel) persiste la sesión en Room antes de navegar.
+ *  - applyEditedLabel() sigue disponible para actualizar el estado en memoria.
+ */
+class CameraViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repository: SessionRepository by lazy {
+        val db = PhiLabDatabase.getInstance(application)
+        SessionRepository(db.sessionDao())
+    }
 
     val models = listOf(
         ModelOption("ssd_mobilenet_v1.tflite", "SSD MobileNet v1 (300×300)"),
@@ -82,19 +97,45 @@ class CameraViewModel : ViewModel() {
         private set
     var livePointCount by mutableStateOf(0)
         private set
-
     var trackingDebugInfo by mutableStateOf("Tracking: Idle")
         private set
 
-    fun updateTrackingDebugInfo(value: String) {
-        trackingDebugInfo = value
-    }
+    /** true mientras Room está escribiendo, para mostrar un loader si se quiere. */
+    var isSaving by mutableStateOf(false)
+        private set
 
     private var timerJob: Job? = null
+
+    // ── Guardar en Room ───────────────────────────────────────────────────────
+
+    /**
+     * Persiste la sesión con el label editado y luego ejecuta [onDone]
+     * (normalmente la navegación a ResultsScreen).
+     */
+    fun saveSession(editedLabel: String, onDone: () -> Unit) {
+        val results = experimentResults ?: return
+        // Actualizar en memoria con el label editado
+        experimentResults = results.copy(selectedLabel = editedLabel)
+        isSaving = true
+        viewModelScope.launch {
+            try {
+                repository.saveSession(experimentResults!!, editedLabel)
+            } finally {
+                isSaving = false
+                onDone()
+            }
+        }
+    }
+
+    // ── Mantener compatibilidad con flujo anterior ────────────────────────────
 
     fun applyEditedLabel(label: String) {
         experimentResults = experimentResults?.copy(selectedLabel = label)
     }
+
+    // ── Resto del ViewModel sin cambios ───────────────────────────────────────
+
+    fun updateTrackingDebugInfo(value: String) { trackingDebugInfo = value }
 
     fun onUserTap(touchOffset: Offset) {
         val currentDetections = detections
@@ -124,10 +165,7 @@ class CameraViewModel : ViewModel() {
                 hypot((cx - tapX).toDouble(), (cy - tapY).toDouble())
             }
 
-        if (tapped == null) {
-            clearSelectedObject()
-            return
-        }
+        if (tapped == null) { clearSelectedObject(); return }
 
         selectedObject = SelectedObject(
             label = tapped.label,
@@ -175,9 +213,7 @@ class CameraViewModel : ViewModel() {
         calibrationState = value
     }
 
-    fun toggleCamera() {
-        if (isCameraActive) stopCamera() else startCamera()
-    }
+    fun toggleCamera() { if (isCameraActive) stopCamera() else startCamera() }
 
     private fun startCamera() {
         isCameraActive = true

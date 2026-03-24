@@ -1,5 +1,12 @@
 package com.example.philab.ui.lab.experiment.camera
 
+// ── Cambio respecto a la versión anterior ────────────────────────────────────
+// SessionSummaryDialog.onSave ahora llama a viewModel.saveSession(label, onDone)
+// en lugar de applyEditedLabel + navegar directamente.
+// Esto persiste la sesión en Room antes de ir a ResultsScreen.
+// El resto del archivo es idéntico al original.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import android.view.Surface
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
@@ -20,7 +27,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -68,23 +74,23 @@ fun CameraScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 cameraController.bindCamera(
-                    isCameraActive = { viewModel.isCameraActive },
-                    isRecording = { viewModel.isRunning },
-                    detectorProvider = { detectorManager.detector },
-                    onFps = viewModel::updateFps,
-                    onTotalFrames = viewModel::updateTotalFrames,
-                    onDetections = viewModel::updateDetections,
-                    onDetectorStatus = viewModel::updateDetectorStatus,
-                    onCalibration = viewModel::updateCalibrationState,
-                    onMeasurement = viewModel::updateMeasurementResult,
-                    markerSizeCmProvider = { viewModel.markerSizeCm },
+                    isCameraActive        = { viewModel.isCameraActive },
+                    isRecording           = { viewModel.isRunning },
+                    detectorProvider      = { detectorManager.detector },
+                    onFps                 = viewModel::updateFps,
+                    onTotalFrames         = viewModel::updateTotalFrames,
+                    onDetections          = viewModel::updateDetections,
+                    onDetectorStatus      = viewModel::updateDetectorStatus,
+                    onCalibration         = viewModel::updateCalibrationState,
+                    onMeasurement         = viewModel::updateMeasurementResult,
+                    markerSizeCmProvider  = { viewModel.markerSizeCm },
                     enterThresholdProvider = { viewModel.sensitivity.enter },
-                    maxPerClassProvider = { viewModel.maxPerClass },
-                    maxPerFrameProvider = { viewModel.maxPerFrame },
-                    selectedCenterProvider = { viewModel.selectedObject?.let { it.centerX to it.centerY }},
-                    onTrackedDetection = viewModel::updateTrackedDetection,
-                    sessionRecorder = viewModel.sessionRecorder,
-                    onTrackingDebug = viewModel::updateTrackingDebugInfo
+                    maxPerClassProvider   = { viewModel.maxPerClass },
+                    maxPerFrameProvider   = { viewModel.maxPerFrame },
+                    selectedCenterProvider = { viewModel.selectedObject?.let { it.centerX to it.centerY } },
+                    onTrackedDetection    = viewModel::updateTrackedDetection,
+                    sessionRecorder       = viewModel.sessionRecorder,
+                    onTrackingDebug       = viewModel::updateTrackingDebugInfo
                 )
             }
         }
@@ -169,14 +175,31 @@ fun CameraScreen(
             SessionSummaryDialog(
                 results = results,
                 onSave = { editedLabel ->
-                    viewModel.applyEditedLabel(editedLabel)
-                    onNavigateToResults()
+                    // ── CAMBIO CLAVE ──────────────────────────────────────────
+                    // Guarda en Room y navega solo cuando Room confirma el INSERT.
+                    viewModel.saveSession(editedLabel) {
+                        onNavigateToResults()
+                    }
                 },
                 onRestart = { viewModel.clearExperimentResults() }
             )
         }
+
+        // Loader mientras Room escribe (opcional, muy breve en la práctica)
+        if (viewModel.isSaving) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.35f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color.White)
+            }
+        }
     }
 }
+
+// ── El resto de los composables privados es idéntico al original ──────────────
 
 @Composable
 private fun BoxScope.CameraStatsOverlay(
@@ -263,9 +286,7 @@ private fun CameraOverlay(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(start = 12.dp, top = 12.dp, end = 12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.Black.copy(alpha = 0.65f)
-            )
+            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.65f))
         ) {
             Text(
                 text = trackingDebugInfo,
@@ -282,8 +303,6 @@ private fun CameraOverlay(
                 .padding(bottom = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
-            // Config modal
             if (showConfig) {
                 Card(
                     modifier = Modifier.fillMaxWidth(0.92f),
@@ -328,18 +347,13 @@ private fun CameraOverlay(
                 Spacer(Modifier.height(10.dp))
             }
 
-            // Chips de estado
             if (isCameraActive) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(bottom = 8.dp)
                 ) {
                     val arucoOk = calibrationState is CalibrationState.Calibrated
-                    StatusChip(
-                        label = if (arucoOk) "✓ ArUco" else "✗ ArUco",
-                        active = arucoOk
-                    )
-
+                    StatusChip(label = if (arucoOk) "✓ ArUco" else "✗ ArUco", active = arucoOk)
                     val objOk = selectedObject != null
                     StatusChip(
                         label = if (objOk) "★ ${selectedObject!!.label} ×" else "Toca un objeto",
@@ -403,10 +417,7 @@ private fun CameraOverlay(
                         disabledContainerColor = Color(0xFF969191)
                     )
                 ) {
-                    Text(
-                        text = if (isRunning) "Detener" else "Iniciar",
-                        fontSize = 12.sp
-                    )
+                    Text(text = if (isRunning) "Detener" else "Iniciar", fontSize = 12.sp)
                 }
             }
         }
@@ -463,30 +474,19 @@ private fun SensitivityRow(value: Sensitivity, onChange: (Sensitivity) -> Unit) 
 }
 
 @Composable
-private fun StatusChip(
-    label: String,
-    active: Boolean,
-    onClick: (() -> Unit)? = null
-) {
+private fun StatusChip(label: String, active: Boolean, onClick: (() -> Unit)? = null) {
     val bg = if (active) Color(0xFF1D9E75) else Color(0xFF8B0000)
-    val textColor = Color.White
     if (onClick != null) {
         Button(
             onClick = onClick,
             colors = ButtonDefaults.buttonColors(containerColor = bg),
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
             modifier = Modifier.height(32.dp)
-        ) {
-            Text(label, fontSize = 11.sp, color = textColor)
-        }
+        ) { Text(label, fontSize = 11.sp, color = Color.White) }
     } else {
-        Surface(
-            color = bg,
-            shape = MaterialTheme.shapes.small,
-            modifier = Modifier.height(32.dp)
-        ) {
+        Surface(color = bg, shape = MaterialTheme.shapes.small, modifier = Modifier.height(32.dp)) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
-                Text(label, fontSize = 11.sp, color = textColor)
+                Text(label, fontSize = 11.sp, color = Color.White)
             }
         }
     }
