@@ -1,5 +1,6 @@
 package com.example.philab.ui.history
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -9,14 +10,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.House
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -24,6 +24,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.philab.R
 import com.example.philab.domain.experiment.ExperimentResults
+import com.example.philab.domain.export.CsvExporter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -45,13 +49,34 @@ private val DividerColor  = Color(0xFFDDDDE8)
 fun ResultsScreen(
     results: ExperimentResults,
     onBack: () -> Unit,
-    onExport: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    val unit = results.unit
+    val context    = LocalContext.current
+    val scope      = rememberCoroutineScope()
+    val unit       = results.unit
+
+    // ── Sheet state ──
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showSheet  by remember { mutableStateOf(false) }
+    var isExporting by remember { mutableStateOf(false) }
 
     val dateFormatter = remember {
         SimpleDateFormat("dd/MM/yyyy  HH:mm:ss", Locale.getDefault())
+    }
+
+    // ── ExportBottomSheet ──
+    if (showSheet) {
+        ExportBottomSheet(
+            results    = results,
+            sheetState = sheetState,
+            onDismiss  = { showSheet = false },
+            onCsvSaved = { _, _ -> /* callback llega desde el handler de abajo */ },
+            onPdfExport = {
+                // TODO: implementar PdfExporter
+                Toast.makeText(context, "PDF próximamente", Toast.LENGTH_SHORT).show()
+                showSheet = false
+            }
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -94,6 +119,7 @@ fun ResultsScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
+                // ── Lista principal ──
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
@@ -164,7 +190,6 @@ fun ResultsScreen(
                     item {
                         SectionTitle("Datos capturados (${results.sampleCount} puntos)")
                     }
-
                     item {
                         TableHeader(unit = unit)
                     }
@@ -176,10 +201,10 @@ fun ResultsScreen(
 
                     itemsIndexed(displayPoints) { index, point ->
                         TableRow(
-                            index = index + 1,
-                            t = point.tSeconds,
-                            x = point.xCm,
-                            y = point.yCm,
+                            index  = index + 1,
+                            t      = point.tSeconds,
+                            x      = point.xCm,
+                            y      = point.yCm,
                             isEven = index % 2 == 0,
                             isLast = index == displayPoints.lastIndex
                         )
@@ -201,6 +226,7 @@ fun ResultsScreen(
                     }
                 }
 
+                // ── Barra inferior fija ──
                 Surface(
                     shadowElevation = 8.dp,
                     color = Color.White.copy(alpha = 0.95f)
@@ -212,7 +238,7 @@ fun ResultsScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         IconButton(
-                            onClick = onNavigateHome,
+                            onClick  = onNavigateHome,
                             modifier = Modifier
                                 .size(52.dp)
                                 .clip(RoundedCornerShape(14.dp))
@@ -221,25 +247,34 @@ fun ResultsScreen(
                             Icon(
                                 imageVector = Icons.Filled.Home,
                                 contentDescription = "Ir al inicio",
-                                tint = Color(0xFF1D9E75),
+                                tint = AccentGreen,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
 
                         Button(
-                            onClick = onExport,
+                            onClick  = { showSheet = true },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(52.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
+                            shape  = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                            enabled = !isExporting
                         ) {
-                            Text(
-                                "Exportar (PDF / CSV)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = Color.White
-                            )
+                            if (isExporting) {
+                                CircularProgressIndicator(
+                                    color    = Color.White,
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    "Exportar (PDF / CSV)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize   = 15.sp,
+                                    color      = Color.White
+                                )
+                            }
                         }
                     }
                 }
@@ -248,7 +283,7 @@ fun ResultsScreen(
     }
 }
 
-// Tabla
+// ── Tabla ─────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun TableHeader(unit: String) {
@@ -274,8 +309,7 @@ private fun TableRow(
     val bg = if (isEven) BgRowEven else BgRowOdd
     val shape = if (isLast)
         RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp)
-    else
-        RoundedCornerShape(0.dp)
+    else RoundedCornerShape(0.dp)
 
     Row(
         modifier = Modifier
@@ -299,40 +333,40 @@ private fun RowScope.TableCell(
     color: Color = TextPrimary
 ) {
     Text(
-        text = text,
-        modifier = Modifier.weight(weight),
-        color = if (header) TextSecondary else color,
-        fontSize = 12.sp,
+        text       = text,
+        modifier   = Modifier.weight(weight),
+        color      = if (header) TextSecondary else color,
+        fontSize   = 12.sp,
         fontWeight = if (header) FontWeight.Bold else FontWeight.Normal,
-        textAlign = TextAlign.Center
+        textAlign  = TextAlign.Center
     )
 }
 
-// Componentes reutilizables
+// ── Componentes reutilizables ─────────────────────────────────────────────────
 
 @Composable
 private fun SectionTitle(text: String) {
     Text(
-        text = text.uppercase(),
-        color = TextSecondary,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
+        text          = text.uppercase(),
+        color         = TextSecondary,
+        fontSize      = 11.sp,
+        fontWeight    = FontWeight.Bold,
         letterSpacing = 1.sp,
-        modifier = Modifier.padding(bottom = 6.dp, top = 4.dp)
+        modifier      = Modifier.padding(bottom = 6.dp, top = 4.dp)
     )
 }
 
 @Composable
 private fun MetaCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = BgCard),
-        shape = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.cardColors(containerColor = BgCard),
+        shape     = RoundedCornerShape(14.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier  = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            content = content
+            content  = content
         )
     }
 }
@@ -356,10 +390,10 @@ private fun ColumnScope.RowDivider() {
 }
 
 private fun formatDuration(ms: Long): String {
-    val totalSeconds = ms / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    val centis = (ms % 1000) / 10
-    return if (minutes > 0) "%d:%02d.%02d".format(minutes, seconds, centis)
-    else "%d.%02d s".format(seconds, centis)
+    val s  = ms / 1000
+    val m  = s / 60
+    val sc = s % 60
+    val cs = (ms % 1000) / 10
+    return if (m > 0) "%d:%02d.%02d".format(m, sc, cs)
+    else "%d.%02d s".format(sc, cs)
 }
