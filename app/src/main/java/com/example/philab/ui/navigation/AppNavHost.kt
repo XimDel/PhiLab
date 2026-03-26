@@ -91,7 +91,7 @@ fun AppNavHost() {
 
         composable(Routes.CAMERA) {
             CameraScreen(
-                onBack = { navController.popBackStack()  },
+                onBack = { navController.popBackStack() },
                 onNavigateToResults = { navController.navigate(Routes.RESULTS) },
                 viewModel = cameraViewModel
             )
@@ -103,8 +103,7 @@ fun AppNavHost() {
             if (results != null) {
                 ResultsScreen(
                     results = results,
-                    onBack = { navController.popBackStack() },
-                    onExport = { /* TODO */ },
+                    onBack  = { navController.popBackStack() },
                     onNavigateHome = {
                         navController.navigate(Routes.HOME) {
                             popUpTo(Routes.HOME) { inclusive = true }
@@ -135,8 +134,7 @@ fun AppNavHost() {
             results?.let {
                 ResultsScreen(
                     results = it,
-                    onBack = { navController.popBackStack() },
-                    onExport = { },
+                    onBack  = { navController.popBackStack() },
                     onNavigateHome = {
                         navController.navigate(Routes.HOME) {
                             popUpTo(Routes.HOME) { inclusive = true }
