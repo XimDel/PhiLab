@@ -1,5 +1,6 @@
 package com.example.philab.ui.history
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -16,8 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,26 +25,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.philab.R
+import com.example.philab.ui.theme.AppDrawables
+import com.example.philab.ui.theme.Poppins
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Paleta espejo del PdfExporter
-// ─────────────────────────────────────────────────────────────────────────────
+private val PdfBgPage = Color(0xFFEAF6F3)          // fondo claro verde-azulado
+private val PdfBgHeader = Color(0xFFEAF6F3)        // mismo fondo, sin bloque oscuro
+private val PdfBgSection = Color(0xFFFFFFFF)       // cards blancas
+private val PdfBgRowA = Color(0xFFF4F8F7)          // filas suaves
+private val PdfBgRowB = Color(0xFFFFFFFF)
 
-private val PdfBgPage = Color(0xFF12121F)
-private val PdfBgHeader = Color(0xFF1A1A2E)
-private val PdfBgSection = Color(0xFF1E1E35)
-private val PdfBgRowA = Color(0xFF1A1A2E)
-private val PdfBgRowB = Color(0xFF16162A)
-private val PdfAccent = Color(0xFF26D9A0)
-private val PdfAccent2 = Color(0xFF4FC3F7)
-private val PdfText = Color(0xFFFFFFFF)
-private val PdfTextSecondary = Color(0xFF9090B0)
-private val PdfDivider = Color(0xFF252540)
+private val PdfAccent = Color(0xFF5FBF9F)          // verde principal suave
+private val PdfAccent2 = Color(0xFF6FCF97)         // verde secundario
+
+private val PdfText = Color(0xFF2F3E46)            // texto principal oscuro suave
+private val PdfTextSecondary = Color(0xFF5A6269)   // texto gris suave
+private val PdfDivider = Color(0xFFE0E6E4)         // líneas sutiles
 
 private data class PreviewPoint(
     val index: Int,
@@ -139,6 +140,7 @@ private fun PdfReportPreviewScreen(
                 text = "PhiLab · Vista previa del PDF",
                 color = PdfTextSecondary,
                 fontSize = 11.sp,
+                fontFamily = Poppins,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center
             )
@@ -167,11 +169,10 @@ private fun PdfHeader(
                 verticalAlignment = Alignment.Top
             ) {
                 Column {
-                    Text(
-                        text = "PhiLab",
-                        color = PdfAccent,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.logo_no_fondo),
+                        contentDescription = null,
+                        Modifier.size(12.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -186,6 +187,7 @@ private fun PdfHeader(
                         text = label,
                         color = PdfText,
                         fontWeight = FontWeight.Bold,
+                        fontFamily = Poppins,
                         fontSize = 12.sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
@@ -214,7 +216,8 @@ private fun PdfSectionTitle(title: String) {
             text = title,
             color = PdfAccent,
             fontWeight = FontWeight.Bold,
-            fontSize = 11.sp
+            fontSize = 11.sp,
+            fontFamily = Poppins
         )
         Spacer(modifier = Modifier.height(4.dp))
         Box(
@@ -315,6 +318,7 @@ private fun PdfKpiGrid(
                                 text = value,
                                 color = accentColor,
                                 fontWeight = FontWeight.Bold,
+                                fontFamily = Poppins,
                                 fontSize = 18.sp
                             )
                         }
@@ -355,6 +359,7 @@ private fun PdfTable(
                     color = PdfBgHeader,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp,
+                    fontFamily = Poppins,
                     textAlign = TextAlign.Center
                 )
             }
