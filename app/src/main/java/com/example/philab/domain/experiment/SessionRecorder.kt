@@ -51,7 +51,7 @@ class SessionRecorder {
         }
 
         val desplazamiento = points.last().xCm - points.first().xCm
-        val velocidadMedia = if (durationS > 0) distanciaTotal / durationS else 0f
+        val velocidadMedia = if (durationS > 0) desplazamiento / durationS else 0f
 
         val aceleracionMedia = if (points.size >= 3) {
             val dt0 = (points[1].tMs - points[0].tMs) / 1000f
