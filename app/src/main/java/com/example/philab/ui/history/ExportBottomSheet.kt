@@ -15,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,12 +31,12 @@ import kotlinx.coroutines.withContext
 private val SheetBg       = Color(0xFFF8F8FC)
 private val CardBg        = Color.White
 private val AccentGreen   = Color(0xFF1D9E75)
-private val AccentOrange  = Color(0xFFFF9800)
+private val AccentBlue  = Color(0xFF009688)
 private val TextPrimary   = Color(0xFF1A1A2E)
 private val TextSecondary = Color(0xFF7A7A8C)
 private val DividerCol    = Color(0xFFEEEEF2)
-private val TabSelected   = Color(0xFF1D9E75)
-private val TabUnselected = Color(0xFFCCCCDD)
+private val ToggleSelected   = Color(0xFF47E1AB)
+private val ToggleUnselected = Color(0xFFB7B3B3)
 
 // ─── Modelo de opciones UI ────────────────────────────────────────────────────
 
@@ -254,7 +253,7 @@ private fun ExportTabRow(selectedTab: Int, onSelect: (Int) -> Unit) {
             Triple(1, "PDF", Icons.Filled.Description)
         ).forEach { (idx, label, icon) ->
             val selected = selectedTab == idx
-            val color    = if (idx == 0) AccentGreen else AccentOrange
+            val color    = if (idx == 0) AccentGreen else AccentBlue
             Button(
                 onClick  = { onSelect(idx) },
                 modifier = Modifier.weight(1f).height(40.dp),
@@ -377,13 +376,24 @@ private fun PdfTabContent(
         )
     }
 
+    // Preview de filas
+    val totalRows = if (options.tabla) results.points.size else 0
+    if (totalRows > 0) {
+        Text(
+            text     = "Se exportarán $totalRows filas de datos",
+            color    = AccentBlue,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+        )
+    }
+
     Spacer(Modifier.height(20.dp))
 
     Button(
         onClick  = onExport,
         modifier = Modifier.fillMaxWidth().height(52.dp),
         shape    = RoundedCornerShape(14.dp),
-        colors   = ButtonDefaults.buttonColors(containerColor = AccentOrange),
+        colors   = ButtonDefaults.buttonColors(containerColor = AccentBlue),
         enabled  = !isExporting && (options.resumen || options.tabla ||
                 options.fecha || options.duracion || options.muestras ||
                 options.frecuencia || options.escala || options.unidad || options.objeto)
@@ -454,11 +464,11 @@ private fun ToggleRow(
             enabled         = enabled,
             colors          = SwitchDefaults.colors(
                 checkedThumbColor       = Color.White,
-                checkedTrackColor       = AccentGreen,
+                checkedTrackColor       = ToggleSelected,
                 uncheckedThumbColor     = Color.White,
-                uncheckedTrackColor     = Color(0xFFCCCCDD),
-                disabledCheckedTrackColor   = Color(0xFFCCCCDD),
-                disabledUncheckedTrackColor = Color(0xFFCCCCDD),
+                uncheckedTrackColor     = ToggleUnselected,
+                disabledCheckedTrackColor   = ToggleUnselected,
+                disabledUncheckedTrackColor = ToggleUnselected,
             )
         )
     }
