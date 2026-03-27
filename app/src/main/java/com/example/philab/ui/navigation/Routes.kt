@@ -12,6 +12,7 @@ object Routes {
     const val RESULTS_HISTORY  = "results_history/{sessionId}"
     const val HISTORY          = "history"
     const val ARUCO_GENERATOR  = "aruco_generator"
+    const val FAQ_ROUTE  = "faqs"
 
     fun articleRoute(articleId: String) = "article/$articleId"
     fun resultsHistoryRoute(sessionId: Long) = "results_history/$sessionId"
