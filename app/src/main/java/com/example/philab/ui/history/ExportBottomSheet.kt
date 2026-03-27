@@ -31,11 +31,10 @@ import kotlinx.coroutines.withContext
 private val SheetBg       = Color(0xFFF8F8FC)
 private val CardBg        = Color.White
 private val AccentGreen   = Color(0xFF1D9E75)
-private val AccentBlue  = Color(0xFF009688)
 private val TextPrimary   = Color(0xFF1A1A2E)
 private val TextSecondary = Color(0xFF7A7A8C)
 private val DividerCol    = Color(0xFFEEEEF2)
-private val ToggleSelected   = Color(0xFF47E1AB)
+private val ToggleSelected   = Color(0xFF22BE8B)
 private val ToggleUnselected = Color(0xFFB7B3B3)
 
 // ─── Modelo de opciones UI ────────────────────────────────────────────────────
@@ -253,7 +252,7 @@ private fun ExportTabRow(selectedTab: Int, onSelect: (Int) -> Unit) {
             Triple(1, "PDF", Icons.Filled.Description)
         ).forEach { (idx, label, icon) ->
             val selected = selectedTab == idx
-            val color    = if (idx == 0) AccentGreen else AccentBlue
+            val color    = AccentGreen
             Button(
                 onClick  = { onSelect(idx) },
                 modifier = Modifier.weight(1f).height(40.dp),
@@ -381,7 +380,7 @@ private fun PdfTabContent(
     if (totalRows > 0) {
         Text(
             text     = "Se exportarán $totalRows filas de datos",
-            color    = AccentBlue,
+            color    = AccentGreen,
             fontSize = 11.sp,
             modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
         )
@@ -393,7 +392,7 @@ private fun PdfTabContent(
         onClick  = onExport,
         modifier = Modifier.fillMaxWidth().height(52.dp),
         shape    = RoundedCornerShape(14.dp),
-        colors   = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+        colors   = ButtonDefaults.buttonColors(containerColor = AccentGreen),
         enabled  = !isExporting && (options.resumen || options.tabla ||
                 options.fecha || options.duracion || options.muestras ||
                 options.frecuencia || options.escala || options.unidad || options.objeto)
