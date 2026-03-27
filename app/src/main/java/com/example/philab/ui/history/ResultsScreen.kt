@@ -1,6 +1,5 @@
 package com.example.philab.ui.history
 
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -24,10 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.philab.R
 import com.example.philab.domain.experiment.ExperimentResults
-import com.example.philab.domain.export.CsvExporter
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -70,12 +65,8 @@ fun ResultsScreen(
             results    = results,
             sheetState = sheetState,
             onDismiss  = { showSheet = false },
-            onCsvSaved = { _, _ -> /* callback llega desde el handler de abajo */ },
-            onPdfExport = {
-                // TODO: implementar PdfExporter
-                Toast.makeText(context, "PDF próximamente", Toast.LENGTH_SHORT).show()
-                showSheet = false
-            }
+            onCsvSaved = { _, _ -> },
+            onPdfSaved = { _, _ -> },
         )
     }
 

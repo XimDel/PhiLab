@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.philab.domain.export.CsvExporter
 import com.example.philab.domain.experiment.ExperimentResults
+import com.example.philab.domain.export.PdfExporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,6 +79,18 @@ internal data class PdfUiOptions(
     val graficas: Boolean   = false,  // reservado para cuando Vico esté integrado
 )
 
+private fun PdfUiOptions.toPdfOptions() = PdfExporter.PdfOptions(
+    includeFecha      = fecha,
+    includeDuracion   = duracion,
+    includeMuestras   = muestras,
+    includeFrecuencia = frecuencia,
+    includeEscala     = escala,
+    includeUnidad     = unidad,
+    includeObjeto     = objeto,
+    includeResumen    = resumen,
+    includeTabla      = tabla,
+)
+
 // ─── BottomSheet principal ────────────────────────────────────────────────────
 
 /**
@@ -105,15 +118,15 @@ fun ExportBottomSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onCsvSaved: (success: Boolean, fileName: String) -> Unit,
-    onPdfExport: () -> Unit,
+    onPdfSaved: (success: Boolean, fileName: String) -> Unit = { _, _ -> },
 ) {
-    val context     = LocalContext.current
-    val scope       = rememberCoroutineScope()
-    var isExporting by remember { mutableStateOf(false) }
+    val context      = LocalContext.current
+    val scope        = rememberCoroutineScope()
+    var isExporting  by remember { mutableStateOf(false) }
 
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var csvOptions  by remember { mutableStateOf(CsvUiOptions()) }
-    var pdfOptions  by remember { mutableStateOf(PdfUiOptions()) }
+    var selectedTab  by remember { mutableIntStateOf(0) }
+    var csvOptions   by remember { mutableStateOf(CsvUiOptions()) }
+    var pdfOptions   by remember { mutableStateOf(PdfUiOptions()) }
 
     fun exportCsv() {
         if (isExporting) return
@@ -121,9 +134,9 @@ fun ExportBottomSheet(
             isExporting = true
             val success = withContext(Dispatchers.IO) {
                 CsvExporter.saveToDowloads(
-                    context  = context,
-                    results  = results,
-                    options  = csvOptions.toCsvOptions()
+                    context = context,
+                    results = results,
+                    options = csvOptions.toCsvOptions()
                 )
             }
             isExporting = false
@@ -134,6 +147,30 @@ fun ExportBottomSheet(
                 Toast.makeText(context, "Error al guardar el CSV", Toast.LENGTH_SHORT).show()
             }
             onCsvSaved(success, fileName)
+            if (success) onDismiss()
+        }
+    }
+
+    fun exportPdf() {
+        if (isExporting) return
+        scope.launch {
+            isExporting = true
+            val fileName = PdfExporter.buildFileName(results)
+            val success = withContext(Dispatchers.IO) {
+                PdfExporter.saveToDownloads(
+                    context  = context,
+                    results  = results,
+                    options  = pdfOptions.toPdfOptions(),
+                    fileName = fileName
+                )
+            }
+            isExporting = false
+            if (success) {
+                Toast.makeText(context, "PDF guardado en Descargas: $fileName", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(context, "Error al guardar el PDF", Toast.LENGTH_SHORT).show()
+            }
+            onPdfSaved(success, fileName)
             if (success) onDismiss()
         }
     }
@@ -189,10 +226,11 @@ fun ExportBottomSheet(
                     onExport    = { exportCsv() }
                 )
                 1 -> PdfTabContent(
-                    results  = results,
-                    options  = pdfOptions,
-                    onChange = { pdfOptions = it },
-                    onExport = { onPdfExport() }
+                    results     = results,
+                    options     = pdfOptions,
+                    onChange    = { pdfOptions = it },
+                    isExporting = isExporting,
+                    onExport    = { exportPdf() }
                 )
             }
         }
@@ -312,6 +350,7 @@ private fun PdfTabContent(
     results: ExperimentResults,
     options: PdfUiOptions,
     onChange: (PdfUiOptions) -> Unit,
+    isExporting: Boolean = false,
     onExport: () -> Unit,
 ) {
     ToggleSection(title = "Metadata de la sesión") {
@@ -345,13 +384,23 @@ private fun PdfTabContent(
         modifier = Modifier.fillMaxWidth().height(52.dp),
         shape    = RoundedCornerShape(14.dp),
         colors   = ButtonDefaults.buttonColors(containerColor = AccentOrange),
-        enabled  = options.resumen || options.tabla ||
+        enabled  = !isExporting && (options.resumen || options.tabla ||
                 options.fecha || options.duracion || options.muestras ||
-                options.frecuencia || options.escala || options.unidad || options.objeto
+                options.frecuencia || options.escala || options.unidad || options.objeto)
     ) {
-        Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text("Exportar PDF", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+        if (isExporting) {
+            CircularProgressIndicator(
+                color       = Color.White,
+                modifier    = Modifier.size(20.dp),
+                strokeWidth = 2.dp
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Generando…", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+        } else {
+            Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Exportar PDF", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+        }
     }
 }
 
