@@ -21,6 +21,7 @@ import com.example.philab.ui.history.ResultsScreen
 import com.example.philab.ui.theory.article.ArticleScreen
 import com.example.philab.ui.theory.module.TheoryModuleScreen
 import com.example.philab.ui.lab.arucogenerator.ArucoGeneratorScreen
+import com.example.philab.ui.lab.menu.FaqScreen
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,7 +67,7 @@ fun AppNavHost() {
             LabModuleScreen(
                 onBack = { navController.popBackStack() },
                 onStartExperiment = { navController.navigate(Routes.TIPS_MODULE) },
-                onHowItWorks = { },
+                onHowItWorks = { navController.navigate(Routes.FAQ_ROUTE) },
                 onOpenArucoGenerator = { navController.navigate(Routes.ARUCO_GENERATOR) }
             )
         }
@@ -75,6 +76,12 @@ fun AppNavHost() {
             PreExperimentTipsScreen(
                 onBack = { navController.popBackStack() },
                 onStartExperiment = { navController.navigate(Routes.CAMERA_PERMISSION) }
+            )
+        }
+
+        composable(route = Routes.FAQ_ROUTE) {
+            FaqScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

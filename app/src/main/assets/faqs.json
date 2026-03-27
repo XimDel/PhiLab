@@ -1,0 +1,46 @@
+[
+  {
+    "question": "¿Qué hace esta app?",
+    "answer": "Esta aplicación convierte tu celular en un laboratorio portátil de física. Utiliza la cámara para detectar y seguir el movimiento de un objeto en tiempo real, permitiéndote calcular automáticamente variables como posición, distancia recorrida, velocidad y aceleración."
+  },
+  {
+    "question": "¿Necesito internet para usar la app?",
+    "answer": "No. La aplicación funciona completamente en el dispositivo y no requiere conexión a internet."
+  },
+  {
+    "question": "¿Qué es la visión por computadora?",
+    "answer": "Es una tecnología que permite a la aplicación interpretar imágenes o video para detectar y seguir objetos automáticamente."
+  },
+  {
+    "question": "¿Qué es un modelo de visión?",
+    "answer": "Es un sistema entrenado con muchas imágenes que permite reconocer y seguir objetos sin configuración manual."
+  },
+  {
+    "question": "¿Qué significa FPS?",
+    "answer": "FPS significa fotogramas por segundo. Indica cuántas imágenes captura la cámara por segundo. Un valor más alto mejora la precisión."
+  },
+  {
+    "question": "¿Qué es un marcador ArUco?",
+    "answer": "Es un patrón visual que permite convertir píxeles en medidas reales como centímetros, haciendo posibles cálculos físicos precisos."
+  },
+  {
+    "question": "¿Puedo dibujar el ArUco?",
+    "answer": "Sí, pero puede introducir errores. Se recomienda imprimirlo para mayor precisión."
+  },
+  {
+    "question": "¿Cómo mejorar la precisión del experimento?",
+    "answer": "Usa buena iluminación, fondo simple, un objeto visible y mantén la cámara fija durante la captura."
+  },
+  {
+    "question": "¿Qué tipo de movimiento puedo analizar?",
+    "answer": "Movimiento rectilíneo uniforme (MRU) y movimiento rectilíneo uniformemente acelerado (MRUA)."
+  },
+  {
+    "question": "¿Qué formatos puedo exportar?",
+    "answer": "Puedes exportar en PDF (reporte con gráficos) y CSV (datos para análisis)."
+  },
+  {
+    "question": "¿Cómo exporto resultados?",
+    "answer": "Ve a Resultados, selecciona un experimento, consulta y presiona exportar."
+  }
+]
