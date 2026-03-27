@@ -50,16 +50,14 @@ fun ResultsScreen(
     val scope      = rememberCoroutineScope()
     val unit       = results.unit
 
-    // ── Sheet state ──
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var showSheet  by remember { mutableStateOf(false) }
+    val sheetState  = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showSheet   by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
 
     val dateFormatter = remember {
         SimpleDateFormat("dd/MM/yyyy  HH:mm:ss", Locale.getDefault())
     }
 
-    // ── ExportBottomSheet ──
     if (showSheet) {
         ExportBottomSheet(
             results    = results,
@@ -72,12 +70,11 @@ fun ResultsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // Fondo
         Image(
-            painter = painterResource(id = R.drawable.pl_resultsscreen),
+            painter      = painterResource(id = R.drawable.pl_resultsscreen),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
+            modifier     = Modifier.fillMaxSize()
         )
 
         Scaffold(
@@ -88,7 +85,7 @@ fun ResultsScreen(
                         Text(
                             "Resultados — ${results.selectedLabel}",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp
+                            fontSize   = 17.sp
                         )
                     },
                     navigationIcon = {
@@ -97,8 +94,8 @@ fun ResultsScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.White.copy(alpha = 0.85f),
-                        titleContentColor = TextPrimary,
+                        containerColor         = Color.White.copy(alpha = 0.85f),
+                        titleContentColor      = TextPrimary,
                         navigationIconContentColor = TextPrimary
                     )
                 )
@@ -110,13 +107,12 @@ fun ResultsScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                // ── Lista principal ──
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(vertical = 16.dp)
+                    contentPadding      = PaddingValues(vertical = 16.dp)
                 ) {
 
                     // Advertencia sin calibración
@@ -132,7 +128,7 @@ fun ResultsScreen(
                             ) {
                                 Text("⚠", fontSize = 13.sp)
                                 Text(
-                                    text = "Sin calibración ArUco — valores en píxeles. " +
+                                    text  = "Sin calibración ArUco — valores en píxeles. " +
                                             "Para obtener unidades reales (cm) usa un marcador ArUco de tamaño conocido.",
                                     color = Color(0xFF795548),
                                     fontSize = 12.sp
@@ -145,17 +141,17 @@ fun ResultsScreen(
                     item {
                         SectionTitle("Información de la sesión")
                         MetaCard {
-                            MetaRow("Objeto",    results.selectedLabel)
+                            MetaRow("Objeto",           results.selectedLabel)
                             RowDivider()
-                            MetaRow("Fecha",   dateFormatter.format(Date(results.recordedAt)))
+                            MetaRow("Fecha",            dateFormatter.format(Date(results.recordedAt)))
                             RowDivider()
-                            MetaRow("Duración",  formatDuration(results.durationMs))
+                            MetaRow("Duración",         formatDuration(results.durationMs))
                             RowDivider()
-                            MetaRow("Muestras",  "${results.sampleCount} pts")
+                            MetaRow("Muestras",         "${results.sampleCount} pts")
                             RowDivider()
-                            MetaRow("Frecuencia real", "${"%.1f".format(results.sampleRateHz)} Hz")
+                            MetaRow("Frecuencia real",  "${"%.1f".format(results.sampleRateHz)} Hz")
                             RowDivider()
-                            MetaRow("Unidad",    unit)
+                            MetaRow("Unidad",           unit)
                             if (results.isCalibrated) {
                                 RowDivider()
                                 MetaRow("Escala", "${"%.4f".format(results.cmPerPx)} cm/px")
@@ -175,6 +171,12 @@ fun ResultsScreen(
                             RowDivider()
                             MetaRow("Aceleración media", "${"%.2f".format(results.avgAccelCmS2)} $unit/s²")
                         }
+                    }
+
+                    // ── Gráficas — ExperimentCharts con el pipeline nuevo ────
+                    item {
+                        SectionTitle("Gráficas")
+                        ExperimentCharts(results = results)
                     }
 
                     // Tabla de datos
@@ -204,12 +206,12 @@ fun ResultsScreen(
                     if (results.points.size > 500) {
                         item {
                             Text(
-                                text = "Mostrando 500 de ${results.points.size} puntos. " +
+                                text      = "Mostrando 500 de ${results.points.size} puntos. " +
                                         "Exporta a CSV para ver todos.",
-                                color = TextMuted,
-                                fontSize = 11.sp,
+                                color     = TextMuted,
+                                fontSize  = 11.sp,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier
+                                modifier  = Modifier
                                     .fillMaxWidth()
                                     .padding(8.dp)
                             )
@@ -217,10 +219,10 @@ fun ResultsScreen(
                     }
                 }
 
-                // ── Barra inferior fija ──
+                // Barra inferior fija
                 Surface(
                     shadowElevation = 8.dp,
-                    color = Color.White.copy(alpha = 0.95f)
+                    color           = Color.White.copy(alpha = 0.95f)
                 ) {
                     Row(
                         modifier = Modifier
@@ -236,10 +238,10 @@ fun ResultsScreen(
                                 .background(Color(0xFFEEEEF2))
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Home,
+                                imageVector     = Icons.Filled.Home,
                                 contentDescription = "Ir al inicio",
-                                tint = AccentGreen,
-                                modifier = Modifier.size(24.dp)
+                                tint            = AccentGreen,
+                                modifier        = Modifier.size(24.dp)
                             )
                         }
 
@@ -248,14 +250,14 @@ fun ResultsScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(52.dp),
-                            shape  = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
-                            enabled = !isExporting
+                            shape    = RoundedCornerShape(14.dp),
+                            colors   = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                            enabled  = !isExporting
                         ) {
                             if (isExporting) {
                                 CircularProgressIndicator(
-                                    color    = Color.White,
-                                    modifier = Modifier.size(20.dp),
+                                    color       = Color.White,
+                                    modifier    = Modifier.size(20.dp),
                                     strokeWidth = 2.dp
                                 )
                             } else {
@@ -297,7 +299,6 @@ private fun TableRow(
     index: Int, t: Float, x: Float, y: Float,
     isEven: Boolean, isLast: Boolean
 ) {
-    val bg = if (isEven) BgRowEven else BgRowOdd
     val shape = if (isLast)
         RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp)
     else RoundedCornerShape(0.dp)
@@ -306,7 +307,7 @@ private fun TableRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(bg)
+            .background(if (isEven) BgRowEven else BgRowOdd)
             .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         TableCell(text = "$index",         weight = 0.8f, color = TextMuted)
