@@ -11,11 +11,8 @@ import android.graphics.pdf.PdfDocument
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.tooling.preview.Preview
+import com.example.philab.R
 import com.example.philab.domain.experiment.ExperimentResults
-import com.example.philab.ui.history.HistoryScreen
-import com.example.philab.ui.theme.PhiLabTheme
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -48,17 +45,17 @@ object PdfExporter {
     private const val MARGIN   = 36f
     private const val CONTENT_W = PAGE_W - MARGIN * 2f
 
-    // ── Paleta ────────────────────────────────────────────────────────────────
-    private val COL_BG_PAGE    = Color.parseColor("#12121F")
-    private val COL_BG_HEADER  = Color.parseColor("#1A1A2E")
-    private val COL_BG_SECTION = Color.parseColor("#1E1E35")
-    private val COL_BG_ROW_A   = Color.parseColor("#1A1A2E")
-    private val COL_BG_ROW_B   = Color.parseColor("#16162A")
-    private val COL_ACCENT     = Color.parseColor("#26D9A0")
-    private val COL_ACCENT2    = Color.parseColor("#4FC3F7")
-    private val COL_TEXT       = Color.parseColor("#FFFFFF")
-    private val COL_TEXT_SEC   = Color.parseColor("#9090B0")
-    private val COL_DIVIDER    = Color.parseColor("#252540")
+    // ── Paleta light (espejo del preview Compose) ─────────────────────────────
+    private val COL_BG_PAGE    = Color.parseColor("#EAF6F3")   // fondo verde-azulado claro
+    private val COL_BG_HEADER  = Color.parseColor("#EAF6F3")   // mismo fondo para header
+    private val COL_BG_SECTION = Color.parseColor("#FFFFFF")   // cards blancas
+    private val COL_BG_ROW_A   = Color.parseColor("#F4F8F7")   // fila par, verde muy suave
+    private val COL_BG_ROW_B   = Color.parseColor("#FFFFFF")   // fila impar, blanco
+    private val COL_ACCENT     = Color.parseColor("#5FBF9F")   // verde principal suave
+    private val COL_ACCENT2    = Color.parseColor("#6FCF97")   // verde secundario
+    private val COL_TEXT       = Color.parseColor("#2F3E46")   // texto principal oscuro
+    private val COL_TEXT_SEC   = Color.parseColor("#5A6269")   // texto secundario gris
+    private val COL_DIVIDER    = Color.parseColor("#E0E6E4")   // líneas sutiles
 
     // ── Fuentes ───────────────────────────────────────────────────────────────
     private val FONT_BOLD    = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -113,13 +110,13 @@ object PdfExporter {
 
         // ── Portada / header ──────────────────────────────────────────────────
         renderer.drawPageBackground()
-        renderer.drawAppHeader(results.selectedLabel, dateFormatter.format(Date(results.recordedAt)))
+        renderer.drawAppHeader(dateFormatter.format(Date(results.recordedAt)))
 
         // ── Metadata ──────────────────────────────────────────────────────────
         val metaRows = mutableListOf<Pair<String, String>>()
         if (options.includeObjeto)     metaRows += "Objeto" to results.selectedLabel
         if (options.includeFecha)      metaRows += "Fecha" to dateFormatter.format(Date(results.recordedAt))
-        if (options.includeDuracion)   metaRows += "Duracion" to formatDuration(results.durationMs)
+        if (options.includeDuracion)   metaRows += "Duración" to formatDuration(results.durationMs)
         if (options.includeMuestras)   metaRows += "Muestras" to "${results.sampleCount} pts"
         if (options.includeFrecuencia) metaRows += "Frecuencia" to "${"%.1f".format(results.sampleRateHz)} Hz"
         if (options.includeUnidad)     metaRows += "Unidad" to unit
@@ -127,19 +124,19 @@ object PdfExporter {
             metaRows += "Escala" to "${"%.4f".format(results.cmPerPx)} cm/px"
 
         if (metaRows.isNotEmpty()) {
-            renderer.drawSectionTitle("INFORMACION DE LA SESION")
+            renderer.drawSectionTitle("INFORMACION DE LA SESIÓN")
             renderer.drawKeyValueCard(metaRows)
         }
 
         // ── Resumen cinematico ─────────────────────────────────────────────────
         if (options.includeResumen) {
-            renderer.drawSectionTitle("RESULTADOS CINEMATICOS")
+            renderer.drawSectionTitle("RESULTADOS CINEMÁTICOS")
             renderer.drawKpiGrid(
                 listOf(
                     Triple("Distancia total",   "${"%.2f".format(results.totalDistanceCm)} $unit",  COL_ACCENT),
                     Triple("Desplazamiento",     "${"%.2f".format(results.displacementCm)} $unit",   COL_ACCENT2),
                     Triple("Velocidad media",    "${"%.2f".format(results.avgSpeedCmS)} $unit/s",    COL_ACCENT),
-                    Triple("Aceleracion media",  "${"%.2f".format(results.avgAccelCmS2)} $unit/s2",  COL_ACCENT2),
+                    Triple("Aceleración media",  "${"%.2f".format(results.avgAccelCmS2)} $unit/s2",  COL_ACCENT2),
                 )
             )
         }
@@ -211,7 +208,7 @@ object PdfExporter {
 
         // ── Header principal ──────────────────────────────────────────────────
 
-        fun drawAppHeader(label: String, date: String) {
+        fun drawAppHeader(date: String) {
             // Banda de header
             bgPaint.color = COL_BG_HEADER
             canvas.drawRect(0f, 0f, PAGE_W, 80f, bgPaint)
@@ -243,11 +240,7 @@ object PdfExporter {
                 typeface  = FONT_BOLD
                 textAlign = Paint.Align.RIGHT
             }
-            canvas.drawText(label, PAGE_W - MARGIN, 34f, textPaint)
-            textPaint.apply {
-                typeface  = FONT_NORMAL
-                color     = COL_TEXT_SEC
-            }
+
             canvas.drawText(date, PAGE_W - MARGIN, 50f, textPaint)
             textPaint.textAlign = Paint.Align.LEFT
 
@@ -367,7 +360,7 @@ object PdfExporter {
                 textPaint.apply {
                     typeface  = FONT_BOLD
                     textSize  = 9f
-                    color     = Color.parseColor("#12121F")
+                    color     = COL_TEXT
                     textAlign = Paint.Align.CENTER
                 }
                 canvas.drawText(h, MARGIN + i * colW + colW / 2f, cursorY + 16f, textPaint)
