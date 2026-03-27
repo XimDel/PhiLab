@@ -11,20 +11,12 @@ import android.graphics.pdf.PdfDocument
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import com.example.philab.R
 import com.example.philab.domain.experiment.ExperimentResults
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * Exporta ExperimentResults a PDF usando PdfDocument nativo de Android.
- * Sin dependencias externas.
- *
- * Diseño: A4 vertical (595 x 842 pt), paleta oscura con acentos verdes,
- * header con título, secciones con fondo redondeado, tabla con filas alternas.
- */
 object PdfExporter {
 
     data class PdfOptions(
@@ -39,32 +31,25 @@ object PdfExporter {
         val includeTabla: Boolean      = true,
     )
 
-    // ── Dimensiones A4 en puntos (72 dpi) ────────────────────────────────────
     private const val PAGE_W   = 595f
     private const val PAGE_H   = 842f
     private const val MARGIN   = 36f
     private const val CONTENT_W = PAGE_W - MARGIN * 2f
 
-    // ── Paleta light (espejo del preview Compose) ─────────────────────────────
-    private val COL_BG_PAGE    = Color.parseColor("#EAF6F3")   // fondo verde-azulado claro
-    private val COL_BG_HEADER  = Color.parseColor("#EAF6F3")   // mismo fondo para header
-    private val COL_BG_SECTION = Color.parseColor("#FFFFFF")   // cards blancas
-    private val COL_BG_ROW_A   = Color.parseColor("#F4F8F7")   // fila par, verde muy suave
-    private val COL_BG_ROW_B   = Color.parseColor("#FFFFFF")   // fila impar, blanco
-    private val COL_ACCENT     = Color.parseColor("#5FBF9F")   // verde principal suave
-    private val COL_ACCENT2    = Color.parseColor("#6FCF97")   // verde secundario
-    private val COL_TEXT       = Color.parseColor("#2F3E46")   // texto principal oscuro
-    private val COL_TEXT_SEC   = Color.parseColor("#5A6269")   // texto secundario gris
-    private val COL_DIVIDER    = Color.parseColor("#E0E6E4")   // líneas sutiles
+    private val COL_BG_PAGE    = Color.parseColor("#EAF6F3")
+    private val COL_BG_HEADER  = Color.parseColor("#EAF6F3")
+    private val COL_BG_SECTION = Color.parseColor("#FFFFFF")
+    private val COL_BG_ROW_A   = Color.parseColor("#F4F8F7")
+    private val COL_BG_ROW_B   = Color.parseColor("#FFFFFF")
+    private val COL_ACCENT     = Color.parseColor("#5FBF9F")
+    private val COL_ACCENT2    = Color.parseColor("#6FCF97")
+    private val COL_TEXT       = Color.parseColor("#2F3E46")
+    private val COL_TEXT_SEC   = Color.parseColor("#5A6269")
+    private val COL_DIVIDER    = Color.parseColor("#E0E6E4")
 
-    // ── Fuentes ───────────────────────────────────────────────────────────────
     private val FONT_BOLD    = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     private val FONT_NORMAL  = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
 
-    /**
-     * Genera y guarda el PDF en Downloads.
-     * Devuelve true si tuvo éxito.
-     */
     fun saveToDownloads(
         context: Context,
         results: ExperimentResults,
@@ -95,8 +80,6 @@ object PdfExporter {
         return "PhiLab_${label}_$ts.pdf"
     }
 
-    // ── Construcción del documento ────────────────────────────────────────────
-
     private fun buildDocument(
         doc: PdfDocument,
         results: ExperimentResults,
@@ -105,14 +88,11 @@ object PdfExporter {
         val dateFormatter = SimpleDateFormat("dd/MM/yyyy  HH:mm:ss", Locale.getDefault())
         val unit = results.unit
 
-        // Acumulamos bloques de contenido y los paginamos
         val renderer = PageRenderer(doc)
 
-        // ── Portada / header ──────────────────────────────────────────────────
         renderer.drawPageBackground()
         renderer.drawAppHeader(dateFormatter.format(Date(results.recordedAt)))
 
-        // ── Metadata ──────────────────────────────────────────────────────────
         val metaRows = mutableListOf<Pair<String, String>>()
         if (options.includeObjeto)     metaRows += "Objeto" to results.selectedLabel
         if (options.includeFecha)      metaRows += "Fecha" to dateFormatter.format(Date(results.recordedAt))
@@ -128,7 +108,6 @@ object PdfExporter {
             renderer.drawKeyValueCard(metaRows)
         }
 
-        // ── Resumen cinematico ─────────────────────────────────────────────────
         if (options.includeResumen) {
             renderer.drawSectionTitle("RESULTADOS CINEMÁTICOS")
             renderer.drawKpiGrid(
@@ -141,7 +120,6 @@ object PdfExporter {
             )
         }
 
-        // ── Tabla de datos ────────────────────────────────────────────────────
         if (options.includeTabla && results.points.isNotEmpty()) {
             renderer.drawSectionTitle("DATOS CAPTURADOS  (${results.points.size} puntos)")
             renderer.drawTable(
@@ -157,24 +135,18 @@ object PdfExporter {
             )
         }
 
-        // ── Footer en última página ───────────────────────────────────────────
         renderer.drawFooter()
         renderer.finishPage()
     }
-
-    // ── PageRenderer — gestiona cursor Y y paginación automática ─────────────
 
     private class PageRenderer(private val doc: PdfDocument) {
         private var page: PdfDocument.Page = newPage()
         private var canvas: Canvas = page.canvas
         private var cursorY: Float = MARGIN
 
-        // Paints reutilizables
         private val bgPaint   = Paint(Paint.ANTI_ALIAS_FLAG)
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COL_TEXT }
         private val rectPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        // ── Página ────────────────────────────────────────────────────────────
 
         private fun newPage(): PdfDocument.Page {
             val info = PdfDocument.PageInfo.Builder(
@@ -183,7 +155,6 @@ object PdfExporter {
             return doc.startPage(info)
         }
 
-        /** Asegura que hay espacio; si no, crea nueva página. */
         private fun ensureSpace(needed: Float) {
             if (cursorY + needed > PAGE_H - MARGIN - 20f) {
                 drawFooter()
@@ -199,25 +170,18 @@ object PdfExporter {
             doc.finishPage(page)
         }
 
-        // ── Fondo ─────────────────────────────────────────────────────────────
-
         fun drawPageBackground() {
             bgPaint.color = COL_BG_PAGE
             canvas.drawRect(0f, 0f, PAGE_W, PAGE_H, bgPaint)
         }
 
-        // ── Header principal ──────────────────────────────────────────────────
-
         fun drawAppHeader(date: String) {
-            // Banda de header
             bgPaint.color = COL_BG_HEADER
             canvas.drawRect(0f, 0f, PAGE_W, 80f, bgPaint)
 
-            // Línea acento
             bgPaint.color = COL_ACCENT
             canvas.drawRect(0f, 80f, PAGE_W, 83f, bgPaint)
 
-            // Título app
             textPaint.apply {
                 typeface  = FONT_BOLD
                 textSize  = 20f
@@ -225,7 +189,6 @@ object PdfExporter {
             }
             canvas.drawText("PhiLab", MARGIN, 34f, textPaint)
 
-            // Subtítulo
             textPaint.apply {
                 typeface  = FONT_NORMAL
                 textSize  = 10f
@@ -233,7 +196,6 @@ object PdfExporter {
             }
             canvas.drawText("Reporte de experimento", MARGIN, 50f, textPaint)
 
-            // Objeto y fecha — derecha
             textPaint.apply {
                 textSize  = 10f
                 color     = COL_TEXT
@@ -247,8 +209,6 @@ object PdfExporter {
             cursorY = 100f
         }
 
-        // ── Título de sección ─────────────────────────────────────────────────
-
         fun drawSectionTitle(title: String) {
             ensureSpace(28f)
             textPaint.apply {
@@ -257,20 +217,16 @@ object PdfExporter {
                 color     = COL_ACCENT
             }
             canvas.drawText(title, MARGIN, cursorY + 12f, textPaint)
-            // Línea decorativa
             bgPaint.color = COL_ACCENT
             canvas.drawRect(MARGIN, cursorY + 16f, MARGIN + 32f, cursorY + 17.5f, bgPaint)
             cursorY += 26f
         }
-
-        // ── Card de pares clave-valor ─────────────────────────────────────────
 
         fun drawKeyValueCard(rows: List<Pair<String, String>>) {
             val rowH   = 22f
             val totalH = rows.size * rowH + 8f
             ensureSpace(totalH + 8f)
 
-            // Fondo de la card
             rectPaint.color = COL_BG_SECTION
             val rect = RectF(MARGIN, cursorY, MARGIN + CONTENT_W, cursorY + totalH)
             canvas.drawRoundRect(rect, 8f, 8f, rectPaint)
@@ -278,7 +234,6 @@ object PdfExporter {
             rows.forEachIndexed { i, (key, value) ->
                 val y = cursorY + 8f + (i + 1) * rowH - 6f
 
-                // Divider entre filas
                 if (i > 0) {
                     bgPaint.color = COL_DIVIDER
                     canvas.drawRect(
@@ -303,8 +258,6 @@ object PdfExporter {
             cursorY += totalH + 12f
         }
 
-        // ── Grid de KPIs (2 columnas) ─────────────────────────────────────────
-
         fun drawKpiGrid(kpis: List<Triple<String, String, Int>>) {
             val colW  = CONTENT_W / 2f - 6f
             val cardH = 52f
@@ -320,7 +273,6 @@ object PdfExporter {
                         8f, 8f, rectPaint
                     )
 
-                    // Línea de acento izquierda
                     rectPaint.color = accentColor
                     canvas.drawRoundRect(
                         RectF(x, cursorY, x + 3f, cursorY + cardH),
@@ -342,14 +294,11 @@ object PdfExporter {
             cursorY += 4f
         }
 
-        // ── Tabla de datos ────────────────────────────────────────────────────
-
         fun drawTable(headers: List<String>, rows: List<List<String>>) {
             val colW   = CONTENT_W / headers.size
             val rowH   = 18f
             val headerH = 24f
 
-            // Header de tabla
             ensureSpace(headerH + rowH)
             rectPaint.color = COL_ACCENT
             canvas.drawRoundRect(
@@ -368,11 +317,9 @@ object PdfExporter {
             textPaint.textAlign = Paint.Align.LEFT
             cursorY += headerH
 
-            // Filas de datos
             rows.forEachIndexed { rowIdx, row ->
                 ensureSpace(rowH + 2f)
 
-                // Fondo alterno
                 bgPaint.color = if (rowIdx % 2 == 0) COL_BG_ROW_A else COL_BG_ROW_B
                 canvas.drawRect(
                     MARGIN, cursorY,
@@ -399,13 +346,10 @@ object PdfExporter {
                 cursorY += rowH
             }
 
-            // Borde inferior de tabla
             bgPaint.color = COL_ACCENT
             canvas.drawRect(MARGIN, cursorY, MARGIN + CONTENT_W, cursorY + 1f, bgPaint)
             cursorY += 14f
         }
-
-        // ── Footer ────────────────────────────────────────────────────────────
 
         fun drawFooter() {
             val footerY = PAGE_H - 20f
@@ -428,8 +372,6 @@ object PdfExporter {
             textPaint.textAlign = Paint.Align.LEFT
         }
     }
-
-    // ── I/O ───────────────────────────────────────────────────────────────────
 
     private fun openOutputStream(context: Context, fileName: String): OutputStream? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
