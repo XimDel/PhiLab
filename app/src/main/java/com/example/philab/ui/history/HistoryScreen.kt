@@ -265,35 +265,6 @@ fun HistoryScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Generar reporte
-                Text(
-                    text = "Generar reporte:",
-                    fontSize = 13.sp,
-                    color = TextPrimary,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(
-                        onClick = { /* TODO: export PDF */ },
-                        enabled = selectedId != null,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFF9800),
-                            disabledContainerColor = Color(0xFFCCCCCC)
-                        ),
-                        shape = RoundedCornerShape(20.dp)
-                    ) { Text("PDF", fontWeight = FontWeight.Bold) }
-
-                    Button(
-                        onClick = { /* TODO: export CSV */ },
-                        enabled = selectedId != null,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF607D8B),
-                            disabledContainerColor = Color(0xFFCCCCCC)
-                        ),
-                        shape = RoundedCornerShape(20.dp)
-                    ) { Text("CSV", fontWeight = FontWeight.Bold) }
-                }
             }
         }
     }
