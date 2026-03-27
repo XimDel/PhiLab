@@ -1,6 +1,5 @@
 package com.example.philab.ui.history
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -25,28 +23,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.philab.R
-import com.example.philab.ui.theme.AppDrawables
 import com.example.philab.ui.theme.Poppins
 
-private val PdfBgPage = Color(0xFFEAF6F3)          // fondo claro verde-azulado
-private val PdfBgHeader = Color(0xFFEAF6F3)        // mismo fondo, sin bloque oscuro
-private val PdfBgSection = Color(0xFFFFFFFF)       // cards blancas
-private val PdfBgRowA = Color(0xFFF4F8F7)          // filas suaves
+private val PdfBgPage = Color(0xFFEAF6F3)
+private val PdfBgHeader = Color(0xFFEAF6F3)
+private val PdfBgSection = Color(0xFFFFFFFF)
+private val PdfBgRowA = Color(0xFFF4F8F7)
 private val PdfBgRowB = Color(0xFFFFFFFF)
 
-private val PdfAccent = Color(0xFF5FBF9F)          // verde principal suave
-private val PdfAccent2 = Color(0xFF6FCF97)         // verde secundario
+private val PdfAccent = Color(0xFF5FBF9F)
+private val PdfAccent2 = Color(0xFF6FCF97)
 
-private val PdfText = Color(0xFF2F3E46)            // texto principal oscuro suave
-private val PdfTextSecondary = Color(0xFF5A6269)   // texto gris suave
-private val PdfDivider = Color(0xFFE0E6E4)         // líneas sutiles
+private val PdfText = Color(0xFF2F3E46)
+private val PdfTextSecondary = Color(0xFF5A6269)
+private val PdfDivider = Color(0xFFE0E6E4)
 
 private data class PreviewPoint(
     val index: Int,
@@ -169,10 +164,12 @@ private fun PdfHeader(
                 verticalAlignment = Alignment.Top
             ) {
                 Column {
-                    Image(
-                        painter = androidx.compose.ui.res.painterResource(R.drawable.logo_no_fondo),
-                        contentDescription = null,
-                        Modifier.size(12.dp)
+                    Text(
+                        text = "PhiLab",
+                        color = PdfAccent,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = Poppins,
+                        fontSize = 24.sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
