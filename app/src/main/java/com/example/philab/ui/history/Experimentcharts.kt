@@ -272,7 +272,7 @@ fun ExperimentCharts(
     }
 }
 
-// ── Formatter
+// ── Formatter que usa el mapa de índice → tiempo real ────────────────────────
 
 @Composable
 private fun rememberTimeFormatter(
