@@ -27,16 +27,21 @@ import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
 import com.patrykandpatrick.vico.compose.chart.line.lineChart
 import com.patrykandpatrick.vico.compose.chart.line.lineSpec
+import com.patrykandpatrick.vico.compose.component.marker.markerComponent
 import com.patrykandpatrick.vico.compose.component.shape.shader.fromBrush
+import com.patrykandpatrick.vico.compose.component.shapeComponent
+import com.patrykandpatrick.vico.compose.component.textComponent
 import com.patrykandpatrick.vico.core.axis.AxisItemPlacer
 import com.patrykandpatrick.vico.core.axis.AxisPosition
 import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
 import com.patrykandpatrick.vico.core.chart.values.AxisValuesOverrider
+import com.patrykandpatrick.vico.core.component.shape.LineComponent
 import com.patrykandpatrick.vico.core.component.shape.shader.DynamicShaders
 import com.patrykandpatrick.vico.core.component.text.TextComponent
 import com.patrykandpatrick.vico.core.dimensions.MutableDimensions
 import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
 import com.patrykandpatrick.vico.core.entry.entryOf
+import com.patrykandpatrick.vico.core.component.shape.Shapes
 import java.util.Locale
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
@@ -193,7 +198,9 @@ fun ExperimentCharts(
                 val state = readyState
                 if (state == null) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().height(210.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(210.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(
@@ -237,7 +244,9 @@ fun ExperimentCharts(
                         )
                     } else {
                         Box(
-                            modifier = Modifier.fillMaxWidth().height(180.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -248,24 +257,6 @@ fun ExperimentCharts(
                             )
                         }
                     }
-                }
-            }
-
-            // Badges del pipeline
-            val state = readyState
-            if (state != null) {
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    PipelineBadge("${state.data.cleanedPoints} pts válidos", AccentGreen)
-                    if (state.data.outliersRemoved > 0)
-                        PipelineBadge("${state.data.outliersRemoved} outliers removidos", AccentOrange)
-                    if (state.data.gapsInterpolated > 0)
-                        PipelineBadge("${state.data.gapsInterpolated} gaps interpolados", AccentBlue)
                 }
             }
         }
@@ -393,6 +384,26 @@ private fun VicoLineChart(
         AxisValuesOverrider.adaptiveYValues(yFraction = 1.0f, round = false)
     }
 
+    val marker = markerComponent(
+        label = textComponent(
+            color      = Color.White,
+            textSize   = 11.sp,
+            padding    = MutableDimensions(8f, 4f, 8f, 4f),
+            background = shapeComponent(
+                shape = Shapes.roundedCornerShape(25),
+                color = lineColor
+            )
+        ),
+        indicator = shapeComponent(
+            shape = Shapes.pillShape,
+            color = lineColor
+        ),
+        guideline = LineComponent(
+            color = lineColor.copy(alpha = 0.3f).toArgb(),
+            thicknessDp = 1f
+        )
+    )
+
     Chart(
         chart = lineChart(
             lines = listOf(
@@ -420,6 +431,7 @@ private fun VicoLineChart(
                 addExtremeLabelPadding = true
             )
         ),
+        marker = marker,
         runInitialAnimation = false,
         modifier = Modifier
             .fillMaxWidth()
