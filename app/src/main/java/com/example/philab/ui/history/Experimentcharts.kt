@@ -42,6 +42,7 @@ import com.patrykandpatrick.vico.core.dimensions.MutableDimensions
 import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
 import com.patrykandpatrick.vico.core.entry.entryOf
 import com.patrykandpatrick.vico.core.component.shape.Shapes
+import com.patrykandpatrick.vico.core.marker.MarkerLabelFormatter
 import java.util.Locale
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
@@ -384,6 +385,14 @@ private fun VicoLineChart(
         AxisValuesOverrider.adaptiveYValues(yFraction = 1.0f, round = false)
     }
 
+    val markerFormatter = remember(yUnit) {
+        MarkerLabelFormatter { markedEntries, _ ->
+            markedEntries.firstOrNull()?.let { entry ->
+                String.format(Locale.US, "%.2f %s", entry.entry.y, yUnit)
+            } ?: ""
+        }
+    }
+
     val marker = markerComponent(
         label = textComponent(
             color      = Color.White,
@@ -402,7 +411,7 @@ private fun VicoLineChart(
             color = lineColor.copy(alpha = 0.3f).toArgb(),
             thicknessDp = 1f
         )
-    )
+    ).apply { labelFormatter = markerFormatter }
 
     Chart(
         chart = lineChart(
