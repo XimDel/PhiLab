@@ -99,6 +99,7 @@ fun AppNavHost() {
         }
 
         composable(Routes.CAMERA) {
+            UnlockOrientation()
             CameraScreen(
                 onBack = { navController.popBackStack() },
                 onNavigateToResults = { navController.navigate(Routes.RESULTS) },
@@ -107,6 +108,7 @@ fun AppNavHost() {
         }
 
         composable(Routes.RESULTS) {
+            UnlockOrientation()
             val results = cameraViewModel.experimentResults
             if (results != null) {
                 ResultsScreen(
@@ -127,6 +129,7 @@ fun AppNavHost() {
             route = Routes.RESULTS_HISTORY,
             arguments = listOf(navArgument("sessionId") { type = NavType.LongType })
         ) { backStackEntry ->
+            UnlockOrientation()
             val sessionId = backStackEntry.arguments?.getLong("sessionId") ?: return@composable
 
             var results by remember {
