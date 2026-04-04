@@ -44,6 +44,7 @@ import com.patrykandpatrick.vico.core.entry.entryOf
 import com.patrykandpatrick.vico.core.component.shape.Shapes
 import com.patrykandpatrick.vico.core.marker.MarkerLabelFormatter
 import java.util.Locale
+import com.example.philab.domain.experiment.MotionClassifier
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
 private val BgCard        = Color.White.copy(alpha = 0.85f)
@@ -167,7 +168,7 @@ fun ExperimentCharts(
             Spacer(Modifier.height(10.dp))
 
             // Subtítulo
-            val motionType = remember(results) { classifyMotion(results) }
+            val motionType = remember(results) { MotionClassifier.classify(results) }
             val subtitle = when (selectedTab) {
                 GraphTab.POSITION -> motionType
                 GraphTab.VELOCITY -> motionType
@@ -179,7 +180,7 @@ fun ExperimentCharts(
                 fontSize = 11.sp,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
 
             // Contenido
             Box(
@@ -253,45 +254,6 @@ fun ExperimentCharts(
                 }
             }
         }
-    }
-}
-
-private fun classifyMotion(results: ExperimentResults): String {
-    val a = results.avgAccelCmS2
-    val points = results.points
-    if (points.size < 3) return "Movimiento detectado"
-
-    // Calcular variación de aceleración entre intervalos
-    val velocities = mutableListOf<Float>()
-    for (i in 1 until points.size) {
-        val dt = points[i].tSeconds - points[i-1].tSeconds
-        if (dt > 0f) {
-            velocities.add((points[i].xCm - points[i-1].xCm) / dt)
-        }
-    }
-
-    if (velocities.size < 2) return "Movimiento detectado"
-
-    val accels = mutableListOf<Float>()
-    for (i in 1 until velocities.size) {
-        accels.add(velocities[i] - velocities[i-1])
-    }
-
-    val meanAccel = kotlin.math.abs(a)
-    val accelStd = run {
-        val mean = accels.average().toFloat()
-        kotlin.math.sqrt(
-            accels.map { (it - mean) * (it - mean) }.average()
-        ).toFloat()
-    }
-
-    return when {
-        // Aceleración media casi cero → MRU
-        meanAccel < 0.5f -> "Movimiento Rectilíneo Uniforme (MRU)"
-        // Aceleración constante (baja variación relativa) → MRUA
-        accelStd / (meanAccel + 0.001f) < 1.5f -> "Movimiento Rectilíneo Uniformemente Acelerado (MRUA)"
-        // Alta variación → no uniforme
-        else -> "Movimiento No Uniforme"
     }
 }
 
