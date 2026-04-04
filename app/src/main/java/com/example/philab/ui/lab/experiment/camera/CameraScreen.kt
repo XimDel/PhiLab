@@ -29,6 +29,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.philab.core.calibration.CalibrationState
 import com.example.philab.core.detection.DetectorManager
 import com.example.philab.ui.camera.CameraController
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 
 @Composable
 fun CameraScreen(
@@ -275,133 +279,327 @@ private fun CameraOverlay(
     onClearSelection: () -> Unit,
     calibrationState: CalibrationState
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (showConfig) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(0.92f),
-                    colors = CardDefaults.cardColors(containerColor = Color(0x8C000000))
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Modelo", color = Color.White)
-                            Spacer(Modifier.width(6.dp))
-                            InfoTooltip("A mayor tamaño, mayor precisión y menos FPS")
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isLandscape) {
+            // ── LANDSCAPE: panel izquierdo con scroll + botones a la derecha ──
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                // Panel de config (izquierda, con scroll)
+                if (showConfig) {
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(0.92f)
+                            .align(Alignment.Bottom),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0x8C000000)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .verticalScroll(rememberScrollState())
+                                .padding(12.dp)
+                        ) {
+                            ConfigPanelContent(
+                                models = models,
+                                selectedModel = selectedModel,
+                                isCameraActive = isCameraActive,
+                                onSelectModel = onSelectModel,
+                                sensitivity = sensitivity,
+                                onSensitivityChange = onSensitivityChange,
+                                maxPerFrame = maxPerFrame,
+                                onMaxPerFrameChange = onMaxPerFrameChange,
+                                maxPerClass = maxPerClass,
+                                onMaxPerClassChange = onMaxPerClassChange,
+                                markerSizeCm = markerSizeCm,
+                                onMarkerSizeCmChange = onMarkerSizeCmChange
+                            )
                         }
-                        Spacer(Modifier.height(6.dp))
-                        ModelDropdown(models, selectedModel, enabled = !isCameraActive, onSelect = onSelectModel)
-                        Spacer(Modifier.height(10.dp))
-                        Text("Umbral de Confianza", color = Color.White)
-                        SensitivityRow(value = sensitivity, onChange = onSensitivityChange)
-                        Spacer(Modifier.height(10.dp))
-                        Text("Máx. objetos por frame: $maxPerFrame", color = Color.White)
-                        Slider(
-                            value = maxPerFrame.toFloat(),
-                            onValueChange = { onMaxPerFrameChange(it.toInt().coerceIn(1, 6)) },
-                            valueRange = 1f..6f, steps = 4
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
+
+                // Botones (derecha, siempre visibles)
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Bottom)
+                        .padding(bottom = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isCameraActive) {
+                        val arucoOk = calibrationState is CalibrationState.Calibrated
+                        StatusChip(
+                            label = if (arucoOk) "✓ ArUco" else "✗ ArUco",
+                            active = arucoOk
                         )
-                        Spacer(Modifier.height(10.dp))
-                        Text("Máx. por clase: $maxPerClass", color = Color.White)
-                        Slider(
-                            value = maxPerClass.toFloat(),
-                            onValueChange = { onMaxPerClassChange(it.toInt().coerceIn(1, 10)) },
-                            valueRange = 1f..10f, steps = 8
+                        val objOk = selectedObject != null
+                        StatusChip(
+                            label = if (objOk) "★ ${selectedObject!!.label} ×" else "Toca objeto",
+                            active = objOk,
+                            onClick = if (objOk) onClearSelection else null
                         )
-                        Spacer(Modifier.height(10.dp))
-                        Text("Tamaño marcador ArUco: ${"%.1f".format(markerSizeCm)} cm", color = Color.White)
-                        Slider(
-                            value = markerSizeCm,
-                            onValueChange = onMarkerSizeCmChange,
-                            valueRange = 1f..20f, steps = 37
+                    }
+
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(
+                                Color(0x88000000),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(Modifier.height(6.dp))
+                    }
+
+                    IconButton(
+                        onClick = onToggleConfig,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(
+                                Color(0xFF289BAD),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Configuración",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = onToggleCamera,
+                        enabled = !isRunning,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isCameraActive) Color(0xFF555577)
+                            else Color(0xFF2B77CB),
+                            disabledContainerColor = Color(0xFF797676)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = if (isCameraActive) "Detener" else "Calibrar",
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Button(
+                        onClick = onStartStop,
+                        enabled = isCameraActive && selectedObject != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isRunning) Color.Red else Color(0xFF1D9E75),
+                            disabledContainerColor = Color(0xFF969191)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = if (isRunning) "Detener" else "Iniciar",
+                            fontSize = 11.sp
+                        )
                     }
                 }
-                Spacer(Modifier.height(10.dp))
             }
 
-            if (isCameraActive) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    val arucoOk = calibrationState is CalibrationState.Calibrated
-                    StatusChip(label = if (arucoOk) "✓ ArUco" else "✗ ArUco", active = arucoOk)
-                    val objOk = selectedObject != null
-                    StatusChip(
-                        label = if (objOk) "★ ${selectedObject!!.label} ×" else "Toca un objeto",
-                        active = objOk,
-                        onClick = if (objOk) onClearSelection else null
-                    )
-                }
-            }
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+        } else {
+            // ── PORTRAIT: layout original sin cambios ──
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(Color(0x88000000), shape = androidx.compose.foundation.shape.CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                if (showConfig) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(0.92f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0x8C000000)
+                        )
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Spacer(Modifier.height(8.dp))
+                            ConfigPanelContent(
+                                models = models,
+                                selectedModel = selectedModel,
+                                isCameraActive = isCameraActive,
+                                onSelectModel = onSelectModel,
+                                sensitivity = sensitivity,
+                                onSensitivityChange = onSensitivityChange,
+                                maxPerFrame = maxPerFrame,
+                                onMaxPerFrameChange = onMaxPerFrameChange,
+                                maxPerClass = maxPerClass,
+                                onMaxPerClassChange = onMaxPerClassChange,
+                                markerSizeCm = markerSizeCm,
+                                onMarkerSizeCmChange = onMarkerSizeCmChange
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
                 }
 
-                IconButton(
-                    onClick = onToggleConfig,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(Color(0xFF289BAD), shape = androidx.compose.foundation.shape.CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = "Configuración",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                if (isCameraActive) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        val arucoOk = calibrationState is CalibrationState.Calibrated
+                        StatusChip(
+                            label = if (arucoOk) "✓ ArUco" else "✗ ArUco",
+                            active = arucoOk
+                        )
+                        val objOk = selectedObject != null
+                        StatusChip(
+                            label = if (objOk) "★ ${selectedObject!!.label} ×" else "Toca un objeto",
+                            active = objOk,
+                            onClick = if (objOk) onClearSelection else null
+                        )
+                    }
                 }
 
-                Button(
-                    onClick = onToggleCamera,
-                    enabled = !isRunning,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isCameraActive) Color(0xFF555577) else Color(0xFF2B77CB),
-                        disabledContainerColor = Color(0xFF797676)
-                    )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (isCameraActive) "Detener cámara" else "Calibrar | Detectar",
-                        fontSize = 12.sp
-                    )
-                }
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(
+                                Color(0x88000000),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
 
-                Button(
-                    onClick = onStartStop,
-                    enabled = isCameraActive && selectedObject != null,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isRunning) Color.Red else Color(0xFF1D9E75),
-                        disabledContainerColor = Color(0xFF969191)
-                    )
-                ) {
-                    Text(text = if (isRunning) "Detener" else "Iniciar", fontSize = 12.sp)
+                    IconButton(
+                        onClick = onToggleConfig,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(
+                                Color(0xFF289BAD),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Configuración",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = onToggleCamera,
+                        enabled = !isRunning,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isCameraActive) Color(0xFF555577)
+                            else Color(0xFF2B77CB),
+                            disabledContainerColor = Color(0xFF797676)
+                        )
+                    ) {
+                        Text(
+                            text = if (isCameraActive) "Detener cámara" else "Calibrar | Detectar",
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Button(
+                        onClick = onStartStop,
+                        enabled = isCameraActive && selectedObject != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isRunning) Color.Red else Color(0xFF1D9E75),
+                            disabledContainerColor = Color(0xFF969191)
+                        )
+                    ) {
+                        Text(
+                            text = if (isRunning) "Detener" else "Iniciar",
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ConfigPanelContent(
+    models: List<ModelOption>,
+    selectedModel: ModelOption,
+    isCameraActive: Boolean,
+    onSelectModel: (ModelOption) -> Unit,
+    sensitivity: Sensitivity,
+    onSensitivityChange: (Sensitivity) -> Unit,
+    maxPerFrame: Int,
+    onMaxPerFrameChange: (Int) -> Unit,
+    maxPerClass: Int,
+    onMaxPerClassChange: (Int) -> Unit,
+    markerSizeCm: Float,
+    onMarkerSizeCmChange: (Float) -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Modelo", color = Color.White)
+        Spacer(Modifier.width(6.dp))
+        InfoTooltip("A mayor tamaño, mayor precisión y menos FPS")
+    }
+    Spacer(Modifier.height(6.dp))
+    ModelDropdown(
+        models = models,
+        selectedModel = selectedModel,
+        enabled = !isCameraActive,
+        onSelect = onSelectModel
+    )
+    Spacer(Modifier.height(10.dp))
+    Text("Umbral de Confianza", color = Color.White)
+    SensitivityRow(value = sensitivity, onChange = onSensitivityChange)
+    Spacer(Modifier.height(10.dp))
+    Text("Máx. objetos por frame: $maxPerFrame", color = Color.White)
+    Slider(
+        value = maxPerFrame.toFloat(),
+        onValueChange = { onMaxPerFrameChange(it.toInt().coerceIn(1, 6)) },
+        valueRange = 1f..6f,
+        steps = 4
+    )
+    Spacer(Modifier.height(10.dp))
+    Text("Máx. por clase: $maxPerClass", color = Color.White)
+    Slider(
+        value = maxPerClass.toFloat(),
+        onValueChange = { onMaxPerClassChange(it.toInt().coerceIn(1, 10)) },
+        valueRange = 1f..10f,
+        steps = 8
+    )
+    Spacer(Modifier.height(10.dp))
+    Text(
+        "Tamaño marcador ArUco: ${"%.1f".format(markerSizeCm)} cm",
+        color = Color.White
+    )
+    Slider(
+        value = markerSizeCm,
+        onValueChange = onMarkerSizeCmChange,
+        valueRange = 1f..20f,
+        steps = 37
+    )
+    Spacer(Modifier.height(6.dp))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
