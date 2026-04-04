@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -146,14 +148,14 @@ fun ArucoGeneratorScreen(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.HelpOutline,
+                        imageVector = Icons.Filled.MenuBook,
                         contentDescription = null,
                         tint = Color(0xFF48835E),
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = "¿No puedes imprimir?\nAprende a dibujar tu ArUco",
+                        text = "¿No puedes imprimir?\n¡Aprende a dibujar tu ArUco!",
                         fontFamily = Poppins,
                         fontSize = 12.sp,
                         color = Color(0xFF48835E)
