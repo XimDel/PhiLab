@@ -393,7 +393,7 @@ private fun CameraOverlay(
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = if (isCameraActive) "Detener" else "Calibrar",
+                            text = if (isCameraActive) "Detener" else "Calibrar |\nDetectar",
                             fontSize = 11.sp
                         )
                     }
