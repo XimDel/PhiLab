@@ -28,7 +28,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.philab.data.local.database.PhiLabDatabase
-import com.example.philab.data.local.entity.SessionEntity
 import com.example.philab.data.repository.SessionRepository
 import com.example.philab.ui.theme.AppDrawables
 import com.example.philab.ui.theme.PhiLabTheme

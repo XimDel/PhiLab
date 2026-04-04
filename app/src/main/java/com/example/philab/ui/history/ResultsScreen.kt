@@ -46,8 +46,6 @@ fun ResultsScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    val context    = LocalContext.current
-    val scope      = rememberCoroutineScope()
     val unit       = results.unit
 
     val sheetState  = rememberModalBottomSheetState(skipPartiallyExpanded = true)

@@ -30,7 +30,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.philab.R
 import com.example.philab.data.repository.ArticleRepository
 import com.example.philab.domain.model.Article
 import com.example.philab.ui.theme.PhiLabTheme

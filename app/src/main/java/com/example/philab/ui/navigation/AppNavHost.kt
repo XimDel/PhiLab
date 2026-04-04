@@ -5,7 +5,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -35,7 +34,6 @@ fun AppNavHost() {
     val navController = rememberNavController()
     val cameraViewModel: CameraViewModel = viewModel()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
 

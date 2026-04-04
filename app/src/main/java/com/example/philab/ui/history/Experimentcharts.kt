@@ -342,20 +342,6 @@ private fun GraphTabChip(
     }
 }
 
-// ── Badge de metadata del pipeline ───────────────────────────────────────────
-
-@Composable
-private fun PipelineBadge(label: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(color.copy(alpha = 0.10f))
-            .padding(horizontal = 8.dp, vertical = 3.dp)
-    ) {
-        Text(label, color = color, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
 // ── Gráfica Vico ──────────────────────────────────────────────────────────────
 
 @Composable

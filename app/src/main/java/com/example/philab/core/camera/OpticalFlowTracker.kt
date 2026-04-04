@@ -74,8 +74,6 @@ class OpticalFlowTracker {
     private val QUALITY_LEVEL = 0.01
     private val MIN_DISTANCE = 4.0
 
-    private val BACK_CHECK_ENABLED = false
-
     private val cornersRaw = MatOfPoint()
     private val TAG = "OptFlowTracker"
 
