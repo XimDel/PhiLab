@@ -1,13 +1,16 @@
 package com.example.philab.ui.lab.experiment.camera
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -21,6 +24,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.philab.domain.experiment.ExperimentResults
 
 private val BgCard        = Color(0xFFFFFFFF)
@@ -50,25 +55,33 @@ fun SessionSummaryDialog(
     onSave: (experimentName: String, label: String) -> Unit,
     onRestart: () -> Unit
 ) {
-    // Estado editable: nombre del experimento
     var experimentNameValue by remember { mutableStateOf(TextFieldValue("Experimento")) }
     var editingExperimentName by remember { mutableStateOf(false) }
     val experimentNameFocusRequester = remember { FocusRequester() }
 
-    // Estado editable: nombre del objeto
     var labelValue by remember { mutableStateOf(TextFieldValue(results.selectedLabel)) }
     var editingLabel by remember { mutableStateOf(false) }
     val labelFocusRequester = remember { FocusRequester() }
 
     val focusManager = LocalFocusManager.current
 
-    Dialog(onDismissRequest = {}) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Card(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = BgCard),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxWidth(if (isLandscape) 0.72f else 0.92f)
+                .then(
+                    if (isLandscape) Modifier.fillMaxHeight(0.90f)
+                    else Modifier
+                )
                 .shadow(
                     elevation = 24.dp,
                     shape = RoundedCornerShape(24.dp),
@@ -77,12 +90,18 @@ fun SessionSummaryDialog(
                 )
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        horizontal = 24.dp,
+                        vertical = if (isLandscape) 12.dp else 24.dp
+                    ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Ícono check — más pequeño en landscape
                 Box(
                     modifier = Modifier
-                        .size(56.dp)
+                        .size(if (isLandscape) 40.dp else 56.dp)
                         .clip(CircleShape)
                         .background(
                             Brush.radialGradient(
@@ -95,13 +114,12 @@ fun SessionSummaryDialog(
                         imageVector = Icons.Filled.CheckCircle,
                         contentDescription = null,
                         tint = AccentGreen,
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(if (isLandscape) 26.dp else 34.dp)
                     )
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(if (isLandscape) 6.dp else 10.dp))
 
-                //Nombre del experimento
                 EditableTitle(
                     value = experimentNameValue,
                     editing = editingExperimentName,
@@ -114,10 +132,11 @@ fun SessionSummaryDialog(
                     onDone = {
                         editingExperimentName = false
                         focusManager.clearFocus()
-                    }
+                    },
+                    isLandscape = isLandscape
                 )
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(if (isLandscape) 4.dp else 6.dp))
 
                 // Chip editable: nombre del objeto
                 Box(
@@ -178,7 +197,7 @@ fun SessionSummaryDialog(
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(if (isLandscape) 12.dp else 20.dp))
 
                 // Métricas
                 Column(
@@ -192,7 +211,8 @@ fun SessionSummaryDialog(
                         iconTint = AccentBlue,
                         label = "Duración",
                         value = formatDuration(results.durationMs),
-                        unit = ""
+                        unit = "",
+                        compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
@@ -200,7 +220,8 @@ fun SessionSummaryDialog(
                         iconTint = AccentPurple,
                         label = "Muestras",
                         value = "${results.sampleCount}",
-                        unit = "pts · ${"%.1f".format(results.sampleRateHz)} Hz"
+                        unit = "pts · ${"%.1f".format(results.sampleRateHz)} Hz",
+                        compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
@@ -208,7 +229,8 @@ fun SessionSummaryDialog(
                         iconTint = AccentOrange,
                         label = "Distancia",
                         value = "%.2f".format(results.totalDistanceCm),
-                        unit = results.unit
+                        unit = results.unit,
+                        compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
@@ -216,7 +238,8 @@ fun SessionSummaryDialog(
                         iconTint = AccentTeal,
                         label = "Desplazamiento",
                         value = "%.2f".format(results.displacementCm),
-                        unit = results.unit
+                        unit = results.unit,
+                        compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
@@ -224,7 +247,8 @@ fun SessionSummaryDialog(
                         iconTint = AccentRed,
                         label = "Velocidad media",
                         value = "%.2f".format(results.avgSpeedCmS),
-                        unit = "${results.unit}/s"
+                        unit = "${results.unit}/s",
+                        compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
@@ -232,13 +256,14 @@ fun SessionSummaryDialog(
                         iconTint = AccentGreen,
                         label = "Aceleración media",
                         value = "%.2f".format(results.avgAccelCmS2),
-                        unit = "${results.unit}/s²"
+                        unit = "${results.unit}/s²",
+                        compact = isLandscape
                     )
                 }
 
                 // Advertencia sin calibración
                 if (!results.isCalibrated) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(if (isLandscape) 8.dp else 12.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -262,9 +287,9 @@ fun SessionSummaryDialog(
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(if (isLandscape) 12.dp else 20.dp))
 
-                // Acciones
+                // Botones de acción
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -273,7 +298,7 @@ fun SessionSummaryDialog(
                         onClick = onRestart,
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp),
+                            .height(if (isLandscape) 40.dp else 48.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = TextSecondary
@@ -296,7 +321,7 @@ fun SessionSummaryDialog(
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp),
+                            .height(if (isLandscape) 40.dp else 48.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
                     ) {
@@ -308,8 +333,6 @@ fun SessionSummaryDialog(
     }
 }
 
-//Título editable
-
 @Composable
 private fun EditableTitle(
     value: TextFieldValue,
@@ -317,8 +340,11 @@ private fun EditableTitle(
     focusRequester: FocusRequester,
     onStartEdit: () -> Unit,
     onValueChange: (TextFieldValue) -> Unit,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    isLandscape: Boolean = false
 ) {
+    val titleFontSize = if (isLandscape) 16.sp else 20.sp
+
     if (editing) {
         BasicTextField(
             value = value,
@@ -326,7 +352,7 @@ private fun EditableTitle(
             singleLine = true,
             textStyle = TextStyle(
                 color = TextPrimary,
-                fontSize = 20.sp,
+                fontSize = titleFontSize,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             ),
@@ -346,20 +372,18 @@ private fun EditableTitle(
             Text(
                 text = value.text.ifBlank { "Experimento" },
                 color = TextPrimary,
-                fontSize = 20.sp,
+                fontSize = titleFontSize,
                 fontWeight = FontWeight.Bold
             )
             Icon(
                 imageVector = Icons.Filled.Edit,
                 contentDescription = "Editar nombre",
                 tint = TextSecondary.copy(alpha = 0.6f),
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(if (isLandscape) 12.dp else 14.dp)
             )
         }
     }
 }
-
-// Componentes internos
 
 @Composable
 private fun MetricRow(
@@ -367,17 +391,24 @@ private fun MetricRow(
     iconTint: Color,
     label: String,
     value: String,
-    unit: String
+    unit: String,
+    compact: Boolean = false
 ) {
+    val iconBoxSize = if (compact) 28.dp else 34.dp
+    val iconSize    = if (compact) 14.dp else 18.dp
+    val vertPad     = if (compact) 8.dp  else 12.dp
+    val valueFontSize = if (compact) 13.sp else 15.sp
+    val labelFontSize = if (compact) 12.sp else 13.sp
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = vertPad),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(iconBoxSize)
                 .clip(CircleShape)
                 .background(iconTint.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
@@ -386,21 +417,26 @@ private fun MetricRow(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconTint,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(iconSize)
             )
         }
         Spacer(Modifier.width(12.dp))
         Text(
             text = label,
             color = TextSecondary,
-            fontSize = 13.sp,
+            fontSize = labelFontSize,
             modifier = Modifier.weight(1f)
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(text = value, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(
+                text = value,
+                color = TextPrimary,
+                fontSize = valueFontSize,
+                fontWeight = FontWeight.Bold
+            )
             if (unit.isNotEmpty()) {
                 Text(text = unit, color = TextSecondary, fontSize = 11.sp)
             }
