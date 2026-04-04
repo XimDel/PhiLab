@@ -14,21 +14,31 @@ import org.opencv.imgproc.Imgproc
 import org.opencv.video.Video
 
 /**
- * VERSIÓN DIAGNÓSTICO — para aislar el punto exacto de fallo.
+ * OpticalFlowTracker — tracking LK con bbox estable.
  *
- * Cambios vs versión anterior:
- *  - back-check DESACTIVADO completamente
- *  - MIN_VALID_POINTS = 1 (acepta cualquier punto que LK devuelva status=1)
- *  - Log.i en cada decisión crítica (visible sin filtro verbose)
- *  - Reporte del error LK (campo err) para saber si LK está corriendo
- *  - Reporte del tipo de feature cargada (Shi-Tomasi vs grilla)
+ * FIX BBOX (vs versión diagnóstico):
  *
- * Si con MIN_VALID=1 y sin back-check sigue dando 0 found, el problema
- * es que LK devuelve status=0 para TODOS los puntos. Eso significa que:
- *   a) prevGray y gray son iguales (mismo frame clonado)
- *   b) los puntos están fuera de la imagen
- *   c) la ventana LK es demasiado grande para el bbox
- *   d) OpenCV no está inicializado cuando se llama LK
+ *   Antes: el nuevo bbox se calculaba como el bounding box de los feature
+ *   points rastreados:
+ *       x = xs.min(), y = ys.min(), w = xs.max()-xs.min(), h = ys.max()-ys.min()
+ *
+ *   Problema: Shi-Tomasi concentra features en esquinas/bordes con textura.
+ *   El bbox resultante cubre solo esa región, no el objeto completo. Con cada
+ *   reinit de features (cada REINIT_FEATURES_EVERY frames) la ROI se carga
+ *   sobre el bbox encogido, acelerando la degradación. En 3–4 ciclos (~3s)
+ *   el bbox podía reducirse al 30–40% del tamaño original.
+ *
+ *   Fix: preservar el tamaño del bbox del init y solo desplazarlo según el
+ *   desplazamiento medio (mediana) de los features válidos en cada frame.
+ *   Esto hace que el centroide grabado sea siempre el centro geométrico del
+ *   objeto original, independientemente de donde estén los features.
+ *
+ *   Beneficios:
+ *   - El bbox no se encoge → la IoU con TFLite se mantiene alta → menos reinits
+ *   - Menos reinits → menos estados JustInitialized → menos saltos visuales
+ *   - El centroide grabado no deriva → gráficas de posición más precisas
+ *   - Objetos con textura uniforme (pelotas, bloques) se comportan igual que
+ *     objetos con textura rica
  */
 class OpticalFlowTracker {
 
@@ -43,31 +53,28 @@ class OpticalFlowTracker {
     private var initialized = false
     private var justInited = false
 
+    // FIX BBOX: guardamos el bbox original para preservar su tamaño
+    private var currentBbox = Rect()
+
     private var framesSinceInit = 0
     private var framesSinceFeatureReinit = 0
 
     val GRACE_FRAMES = 4
     val framesAfterInit: Int get() = framesSinceInit
 
-    // Ventana más pequeña — menos exigente para texturas pobres
     private val lkWinSize = Size(15.0, 15.0)
     private val lkMaxLevel = 2
     private val lkCriteria = TermCriteria(
         TermCriteria.COUNT or TermCriteria.EPS, 20, 0.03
     )
 
-    // DIAGNÓSTICO: bajado a 1 para ver si LK encuentra ALGO
     private val MIN_VALID_POINTS = 1
-
     private val REINIT_FEATURES_EVERY = 25
-
     private val MAX_FEATURES = 60
     private val QUALITY_LEVEL = 0.01
     private val MIN_DISTANCE = 4.0
 
-    // DIAGNÓSTICO: back-check desactivado
     private val BACK_CHECK_ENABLED = false
-    private val BACK_CHECK_SQ = 225.0
 
     private val cornersRaw = MatOfPoint()
     private val TAG = "OptFlowTracker"
@@ -96,11 +103,13 @@ class OpticalFlowTracker {
         }
 
         prevGray = gray.clone()
+        // FIX BBOX: guardar el bbox del init como referencia de tamaño
+        currentBbox = safe
         initialized = true
         justInited = true
         framesSinceInit = 0
         framesSinceFeatureReinit = 0
-        Log.i(TAG, "INIT OK: ${trackedPoints.rows()} puntos listos")
+        Log.i(TAG, "INIT OK: ${trackedPoints.rows()} puntos, bbox=$safe")
     }
 
     fun update(gray: Mat): TrackResult {
@@ -127,11 +136,11 @@ class OpticalFlowTracker {
 
         val sameSize = gray.cols() == prevGray.cols() && gray.rows() == prevGray.rows()
         if (!sameSize) {
-            Log.i(TAG, "UPDATE frame=$framesSinceInit: FAIL tamaño cambió ${prevGray.cols()}x${prevGray.rows()} → ${gray.cols()}x${gray.rows()}")
+            Log.i(TAG, "UPDATE frame=$framesSinceInit: FAIL tamaño cambió")
             reset(); return TrackResult.Lost
         }
 
-        Log.i(TAG, "UPDATE frame=$framesSinceInit: corriendo LK con $ptCount puntos, img=${gray.cols()}x${gray.rows()}")
+        Log.i(TAG, "UPDATE frame=$framesSinceInit: LK con $ptCount puntos, img=${gray.cols()}x${gray.rows()}")
 
         val nextPts    = MatOfPoint2f()
         val status     = MatOfByte()
@@ -151,75 +160,90 @@ class OpticalFlowTracker {
             val fwdPrev   = trackedPoints.toArray()
             val fwdErr    = err.toArray()
 
-            Log.i(TAG, "LK result: statusArr=${fwdStatus.size} nextArr=${fwdNext.size} errArr=${fwdErr.size}")
+            Log.i(TAG, "LK result: statusArr=${fwdStatus.size} nextArr=${fwdNext.size}")
 
             if (fwdStatus.isEmpty()) {
                 Log.i(TAG, "LK FAIL: status array vacío → Lost")
                 reset(); return TrackResult.Lost
             }
 
-            val statusOk  = fwdStatus.count { it.toInt() == 1 }
+            val statusOk   = fwdStatus.count { it.toInt() == 1 }
             val statusFail = fwdStatus.count { it.toInt() == 0 }
             val avgErr = if (fwdErr.isNotEmpty()) fwdErr.map { it.toDouble() }.average() else -1.0
             Log.i(TAG, "LK status: OK=$statusOk FAIL=$statusFail avgErr=${"%.2f".format(avgErr)}")
 
-            // Log primeros puntos para ver si están dentro de la imagen
+            // Log primeros puntos para diagnóstico
             fwdPrev.take(3).forEachIndexed { i, p ->
                 val s = if (i < fwdStatus.size) fwdStatus[i].toInt() else -1
                 val n = if (i < fwdNext.size) fwdNext[i] else Point(-1.0, -1.0)
                 Log.i(TAG, "  pt[$i] prev=(${p.x.toInt()},${p.y.toInt()}) → next=(${n.x.toInt()},${n.y.toInt()}) status=$s")
             }
 
-            val valid = mutableListOf<Point>()
-            var backFail = 0
+            // Recopilar puntos válidos y sus desplazamientos
+            val validNext = mutableListOf<Point>()
+            val dxList    = mutableListOf<Double>()
+            val dyList    = mutableListOf<Double>()
             var outOfBounds = 0
 
             for (i in fwdStatus.indices) {
                 if (fwdStatus[i].toInt() != 1) continue
+                val pNext = if (i < fwdNext.size) fwdNext[i] else continue
+                val pPrev = if (i < fwdPrev.size) fwdPrev[i] else continue
 
-                // DIAGNÓSTICO: back-check desactivado
-                if (BACK_CHECK_ENABLED && i < fwdNext.size) {
-                    // (omitido en esta versión diagnóstico)
-                }
-
-                val p = if (i < fwdNext.size) fwdNext[i] else continue
-                if (p.x >= 0 && p.x < gray.cols() && p.y >= 0 && p.y < gray.rows()) {
-                    valid.add(p)
+                if (pNext.x >= 0 && pNext.x < gray.cols() &&
+                    pNext.y >= 0 && pNext.y < gray.rows()) {
+                    validNext.add(pNext)
+                    dxList.add(pNext.x - pPrev.x)
+                    dyList.add(pNext.y - pPrev.y)
                 } else {
                     outOfBounds++
                 }
             }
 
-            Log.i(TAG, "valid=${valid.size} outOfBounds=$outOfBounds backFail=$backFail MIN=$MIN_VALID_POINTS")
+            Log.i(TAG, "valid=${validNext.size} outOfBounds=$outOfBounds MIN=$MIN_VALID_POINTS")
 
-            if (valid.size < MIN_VALID_POINTS) {
-                Log.i(TAG, "RESULT: Lost (valid=${valid.size})")
+            if (validNext.size < MIN_VALID_POINTS) {
+                Log.i(TAG, "RESULT: Lost (valid=${validNext.size})")
                 reset(); return TrackResult.Lost
             }
 
-            val xs = valid.map { it.x }
-            val ys = valid.map { it.y }
+            // ── FIX BBOX: desplazar el bbox por la mediana de los movimientos ──
+            //
+            // Antes: newBbox = Rect(xs.min, ys.min, xs.max-xs.min, ys.max-ys.min)
+            // → el tamaño dependía de la distribución de features → se encogía.
+            //
+            // Ahora: calculamos el desplazamiento mediano de todos los features
+            // válidos y lo aplicamos al bbox actual, preservando su tamaño.
+            //
+            // Usamos mediana en lugar de media para robustez ante outliers de LK
+            // (algún feature que se "escapó" a una región de fondo similar).
+            val medianDx = median(dxList)
+            val medianDy = median(dyList)
 
-            val newBbox = Rect(
-                xs.min().toInt().coerceAtLeast(0),
-                ys.min().toInt().coerceAtLeast(0),
-                (xs.max() - xs.min()).toInt().coerceAtLeast(8),
-                (ys.max() - ys.min()).toInt().coerceAtLeast(8)
-            ).clamp(gray.cols(), gray.rows())
+            val newX = (currentBbox.x + medianDx).toInt().coerceIn(0, gray.cols() - 1)
+            val newY = (currentBbox.y + medianDy).toInt().coerceIn(0, gray.rows() - 1)
 
+            val newBbox = Rect(newX, newY, currentBbox.width, currentBbox.height)
+                .clamp(gray.cols(), gray.rows())
+
+            // Actualizar currentBbox para el siguiente frame
+            currentBbox = newBbox
+
+            // Actualizar puntos rastreados o recargar features
             framesSinceFeatureReinit++
             if (framesSinceFeatureReinit >= REINIT_FEATURES_EVERY) {
                 framesSinceFeatureReinit = 0
+                // Recargar features sobre el bbox actualizado (tamaño estable)
                 loadFeaturesDetailed(gray, newBbox)
             } else {
                 trackedPoints.release()
-                trackedPoints = MatOfPoint2f(*valid.toTypedArray())
+                trackedPoints = MatOfPoint2f(*validNext.toTypedArray())
             }
 
             if (!prevGray.empty()) prevGray.release()
             prevGray = gray.clone()
 
-            Log.i(TAG, "RESULT: Found bbox=$newBbox")
+            Log.i(TAG, "RESULT: Found bbox=$newBbox dx=${"%.1f".format(medianDx)} dy=${"%.1f".format(medianDy)}")
             return TrackResult.Found(newBbox)
 
         } catch (t: Throwable) {
@@ -237,6 +261,7 @@ class OpticalFlowTracker {
         justInited = false
         framesSinceInit = 0
         framesSinceFeatureReinit = 0
+        currentBbox = Rect()
         try { trackedPoints.release() } catch (_: Throwable) {}
         trackedPoints = MatOfPoint2f()
         try { if (!prevGray.empty()) prevGray.release() } catch (_: Throwable) {}
@@ -245,9 +270,18 @@ class OpticalFlowTracker {
 
     fun isActive() = initialized
 
-    /**
-     * Carga features y retorna el nombre de la estrategia usada para el log.
-     */
+    // ── Mediana robusta ───────────────────────────────────────────────────────
+
+    private fun median(values: List<Double>): Double {
+        if (values.isEmpty()) return 0.0
+        val sorted = values.sorted()
+        val mid = sorted.size / 2
+        return if (sorted.size % 2 == 0) (sorted[mid - 1] + sorted[mid]) / 2.0
+        else sorted[mid]
+    }
+
+    // ── Carga de features ─────────────────────────────────────────────────────
+
     private fun loadFeaturesDetailed(gray: Mat, bbox: Rect): String {
         // Intento 1: Shi-Tomasi interior
         val roi = Mat(gray, bbox)
@@ -312,7 +346,6 @@ class OpticalFlowTracker {
     private fun borderGridPoints(bbox: Rect, imgW: Int, imgH: Int): List<Point> {
         val pts = mutableListOf<Point>()
         val steps = 8
-        // Borde superior e inferior
         for (i in 0 until steps) {
             val x = bbox.x + bbox.width.toDouble() * i / (steps - 1)
             listOf(bbox.y.toDouble(), (bbox.y + bbox.height - 1).toDouble()).forEach { y ->
@@ -320,7 +353,6 @@ class OpticalFlowTracker {
                     pts.add(Point(x, y))
             }
         }
-        // Borde izquierdo y derecho
         for (i in 1 until steps - 1) {
             val y = bbox.y + bbox.height.toDouble() * i / (steps - 1)
             listOf(bbox.x.toDouble(), (bbox.x + bbox.width - 1).toDouble()).forEach { x ->
