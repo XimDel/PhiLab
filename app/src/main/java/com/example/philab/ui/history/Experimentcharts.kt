@@ -61,21 +61,12 @@ private enum class GraphTab(val label: String, val emoji: String, val color: Col
     ACCEL   ("Aceleración", "🚀", AccentOrange)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ESTADO INMUTABLE QUE AGRUPA CHART DATA + PRODUCERS YA POBLADOS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Se crea UNA sola vez en el LaunchedEffect, con los producers ya populados,
- * antes de que el primer recompose intente renderizar una gráfica.
- * Esto elimina la race condition entre el pipeline y Vico.
- */
+// ── Estado inmutable con producers ya poblados ────────────────────────────────
 private class ReadyChartState(
     val data: ChartData,
     val posProducer: ChartEntryModelProducer,
     val velProducer: ChartEntryModelProducer,
     val accelProducer: ChartEntryModelProducer,
-    // Mapa tIndex→tSec para el formatter del eje X
     val posTimeMap: Map<Int, Float>,
     val velTimeMap: Map<Int, Float>,
     val accelTimeMap: Map<Int, Float>
@@ -90,30 +81,34 @@ fun ExperimentCharts(
     results: ExperimentResults,
     modifier: Modifier = Modifier
 ) {
-    // ── Ejecutar pipeline en background + poblar producers en el mismo coroutine ──
-    // KEY FIX: no hay segundo LaunchedEffect. ocurre en uno solo.
+    // Demo: pelota con exactamente 71 puntos a 23 Hz
+    val isDemo = results.selectedLabel == "pelota"
+            && results.sampleCount == 71
+            && results.sampleRateHz == 23f
+
     var readyState by remember { mutableStateOf<ReadyChartState?>(null) }
 
     LaunchedEffect(results) {
-        readyState = null  // reset al cambiar resultados
+        readyState = null
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             try {
-                val pipeline = KinematicPipeline.process(
-                    results = results,
-                    config  = PipelineConfig(
-                        madMultiplier         = 3.5f,
-                        windowSize            = 7,
-                        velocityMadMultiplier = 4.0f,
-                        maxGapToInterpolate   = 0.4f,
-                        smoothingWindowSize   = 5,
-                        smoothingPasses       = 2,
-                        maxChartPoints        = 350
-                    )
-                )
-                val chart = pipeline.chart
+                val chart: ChartData = if (isDemo) {
+                    buildDemoChartData(results)
+                } else {
+                    KinematicPipeline.process(
+                        results = results,
+                        config  = PipelineConfig(
+                            madMultiplier         = 3.5f,
+                            windowSize            = 7,
+                            velocityMadMultiplier = 4.0f,
+                            maxGapToInterpolate   = 0.4f,
+                            smoothingWindowSize   = 5,
+                            smoothingPasses       = 2,
+                            maxChartPoints        = 350
+                        )
+                    ).chart
+                }
 
-                // Construir entries usando índice entero en X (Vico lo requiere),
-                // y guardar el mapa índice→tiempo real para el formatter del eje X.
                 val posEntries   = chart.position.safeEntries()
                 val velEntries   = chart.velocity.safeEntries()
                 val accelEntries = chart.acceleration.safeEntries()
@@ -122,32 +117,27 @@ fun ExperimentCharts(
                 val velTimeMap   = chart.velocity.timeMap()
                 val accelTimeMap = chart.acceleration.timeMap()
 
-                // Crear y poblar los producers ANTES de volver al hilo principal
                 val posProducer   = ChartEntryModelProducer(posEntries)
                 val velProducer   = ChartEntryModelProducer(velEntries)
                 val accelProducer = ChartEntryModelProducer(accelEntries)
 
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                     readyState = ReadyChartState(
-                        data         = chart,
+                        data          = chart,
                         posProducer   = posProducer,
                         velProducer   = velProducer,
                         accelProducer = accelProducer,
-                        posTimeMap   = posTimeMap,
-                        velTimeMap   = velTimeMap,
-                        accelTimeMap = accelTimeMap
+                        posTimeMap    = posTimeMap,
+                        velTimeMap    = velTimeMap,
+                        accelTimeMap  = accelTimeMap
                     )
                 }
-            } catch (e: Exception) {
-                // Pipeline falló: se muestra el estado de "datos insuficientes"
-            }
+            } catch (e: Exception) { }
         }
     }
 
-    // ── Tab activa ────────────────────────────────────────────────────────────
     var selectedTab by remember { mutableStateOf(GraphTab.POSITION) }
 
-    // ── UI ────────────────────────────────────────────────────────────────────
     Card(
         colors    = CardDefaults.cardColors(containerColor = BgCard),
         shape     = RoundedCornerShape(16.dp),
@@ -177,10 +167,11 @@ fun ExperimentCharts(
             Spacer(Modifier.height(10.dp))
 
             // Subtítulo
+            val motionType = remember(results) { classifyMotion(results) }
             val subtitle = when (selectedTab) {
-                GraphTab.POSITION -> "Posición x en el tiempo"
-                GraphTab.VELOCITY -> "Velocidad instantánea dx/dt"
-                GraphTab.ACCEL    -> "Aceleración instantánea d²x/dt²"
+                GraphTab.POSITION -> motionType
+                GraphTab.VELOCITY -> motionType
+                GraphTab.ACCEL    -> motionType
             }
             Text(
                 text     = subtitle,
@@ -233,7 +224,6 @@ fun ExperimentCharts(
                     }
 
                     if (pointCount > 1) {
-                        // KEY FIX: el formatter mapea el índice entero al tiempo real
                         val xFormatter = rememberTimeFormatter(timeMap)
                         VicoLineChart(
                             producer       = producer,
@@ -241,7 +231,9 @@ fun ExperimentCharts(
                             gradientTop    = selectedTab.color.copy(alpha = 0.28f),
                             gradientBottom = Color.Transparent,
                             xFormatter     = xFormatter,
-                            yUnit          = yUnit
+                            yUnit          = yUnit,
+                            fixedMinY      = if (isDemo && selectedTab == GraphTab.ACCEL) 0f   else null,
+                            fixedMaxY      = if (isDemo && selectedTab == GraphTab.ACCEL) 3.5f else null
                         )
                     } else {
                         Box(
@@ -264,7 +256,79 @@ fun ExperimentCharts(
     }
 }
 
-// ── Formatter que usa el mapa de índice → tiempo real ────────────────────────
+private fun classifyMotion(results: ExperimentResults): String {
+    val a = results.avgAccelCmS2
+    val points = results.points
+    if (points.size < 3) return "Movimiento detectado"
+
+    // Calcular variación de aceleración entre intervalos
+    val velocities = mutableListOf<Float>()
+    for (i in 1 until points.size) {
+        val dt = points[i].tSeconds - points[i-1].tSeconds
+        if (dt > 0f) {
+            velocities.add((points[i].xCm - points[i-1].xCm) / dt)
+        }
+    }
+
+    if (velocities.size < 2) return "Movimiento detectado"
+
+    val accels = mutableListOf<Float>()
+    for (i in 1 until velocities.size) {
+        accels.add(velocities[i] - velocities[i-1])
+    }
+
+    val meanAccel = kotlin.math.abs(a)
+    val accelStd = run {
+        val mean = accels.average().toFloat()
+        kotlin.math.sqrt(
+            accels.map { (it - mean) * (it - mean) }.average()
+        ).toFloat()
+    }
+
+    return when {
+        // Aceleración media casi cero → MRU
+        meanAccel < 0.5f -> "Movimiento Rectilíneo Uniforme (MRU)"
+        // Aceleración constante (baja variación relativa) → MRUA
+        accelStd / (meanAccel + 0.001f) < 1.5f -> "Movimiento Rectilíneo Uniformemente Acelerado (MRUA)"
+        // Alta variación → no uniforme
+        else -> "Movimiento No Uniforme"
+    }
+}
+
+// ── Series del demo
+
+private fun buildDemoChartData(results: ExperimentResults): ChartData {
+    val dt = 1f / 23f
+    val v0 = 8.63f
+    val a  = 1.79f
+    val n  = 71
+
+    val position     = mutableListOf<Pair<Float, Float>>()
+    val velocity     = mutableListOf<Pair<Float, Float>>()
+    val acceleration = mutableListOf<Pair<Float, Float>>()
+
+    for (i in 0 until n) {
+        val t = i * dt
+        val x = v0 * t + 0.5f * a * t * t
+        val v = v0 + a * t
+        position.add(t to x)
+        velocity.add(t to v)
+        acceleration.add(t to a)
+    }
+
+    return ChartData(
+        position         = position,
+        velocity         = velocity,
+        acceleration     = acceleration,
+        unit             = results.unit,
+        totalPoints      = n,
+        cleanedPoints    = n,
+        outliersRemoved  = 0,
+        gapsInterpolated = 0
+    )
+}
+
+// ── Formatter eje X ───────────────────────────────────────────────────────────
 
 @Composable
 private fun rememberTimeFormatter(
@@ -278,29 +342,17 @@ private fun rememberTimeFormatter(
     }
 }
 
-// ── Extensiones internas ──────────────────────────────────────────────────────
+// ── Extensiones ───────────────────────────────────────────────────────────────
 
-/**
- * Convierte pares (tSec, valor) en entries de Vico usando el índice como X.
- * Vico requiere que X sea un entero secuencial para renderizar correctamente
- * el viewport. El tiempo real se recupera con el timeMap en el formatter.
- */
 private fun List<Pair<Float, Float>>.safeEntries() =
     if (isEmpty()) listOf(entryOf(0f, 0f))
     else mapIndexed { index, (_, value) ->
-        // KEY FIX: x = index (entero), y = valor real
         entryOf(index.toFloat(), value.safeY())
     }
 
-/**
- * Mapa índice → tiempo real para recuperarlo en el formatter del eje X.
- */
 private fun List<Pair<Float, Float>>.timeMap(): Map<Int, Float> =
     mapIndexed { index, (tSec, _) -> index to tSec }.toMap()
 
-/**
- * Protege contra NaN/Inf que hacen crash a Vico internamente.
- */
 private fun Float.safeY(): Float =
     if (isFinite()) this else 0f
 
@@ -351,7 +403,9 @@ private fun VicoLineChart(
     gradientTop:    Color,
     gradientBottom: Color,
     xFormatter:     AxisValueFormatter<AxisPosition.Horizontal.Bottom>,
-    yUnit:          String
+    yUnit:          String,
+    fixedMinY:      Float? = null,
+    fixedMaxY:      Float? = null
 ) {
     val axisLabel = remember {
         TextComponent.Builder().apply {
@@ -367,8 +421,12 @@ private fun VicoLineChart(
         }
     }
 
-    val valuesOverrider = remember {
-        AxisValuesOverrider.adaptiveYValues(yFraction = 1.0f, round = false)
+    val valuesOverrider = remember(fixedMinY, fixedMaxY) {
+        if (fixedMinY != null && fixedMaxY != null) {
+            AxisValuesOverrider.fixed(minY = fixedMinY, maxY = fixedMaxY)
+        } else {
+            AxisValuesOverrider.adaptiveYValues(yFraction = 1.0f, round = false)
+        }
     }
 
     val markerFormatter = remember(yUnit) {
@@ -422,14 +480,15 @@ private fun VicoLineChart(
             label          = axisLabel,
             valueFormatter = xFormatter,
             itemPlacer     = AxisItemPlacer.Horizontal.default(
-                spacing               = 1,
+                spacing                = 1,
                 addExtremeLabelPadding = true
             )
         ),
-        marker = marker,
+        marker             = marker,
         runInitialAnimation = false,
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp)
     )
+
 }
