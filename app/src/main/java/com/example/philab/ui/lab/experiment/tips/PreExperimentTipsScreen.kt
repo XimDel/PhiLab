@@ -137,7 +137,7 @@ fun PreExperimentTipsScreen(
                         Image(
                             painter = painterResource(id = R.drawable.exclamationicon),
                             contentDescription = "Help icon",
-                            modifier = Modifier.size(64.dp)
+                            modifier = Modifier.size(50.dp)
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))

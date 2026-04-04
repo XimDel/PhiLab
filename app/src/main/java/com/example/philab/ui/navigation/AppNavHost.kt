@@ -82,7 +82,8 @@ fun AppNavHost() {
 
         composable(Routes.FAQ_ROUTE) {
             FaqScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigate = { route -> navController.navigate(route) }
             )
         }
 

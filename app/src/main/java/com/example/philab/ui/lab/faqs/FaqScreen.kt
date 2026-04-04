@@ -1,20 +1,24 @@
 package com.example.philab.ui.lab.menu
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -24,14 +28,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.philab.domain.model.Faq
 import com.example.philab.ui.lab.faqs.FaqViewModel
-import com.example.philab.ui.theme.Poppins
 import com.example.philab.ui.theme.AppDrawables
 import com.example.philab.ui.theme.PhiLabTheme
+import com.example.philab.ui.theme.Poppins
 
 @Composable
 fun FaqScreen(
     onBack: () -> Unit,
+    onNavigate: (String) -> Unit = {},
     viewModel: FaqViewModel = viewModel()
 ) {
     val faqList = viewModel.faqList
@@ -84,7 +91,9 @@ fun FaqScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Surface(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
                     color = Color.White.copy(alpha = 0.55f),
                     shape = MaterialTheme.shapes.medium
                 ) {
@@ -93,14 +102,12 @@ fun FaqScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                             .padding(16.dp)
-                    ){
-
+                    ) {
                         faqList.forEach { faq ->
                             FaqItem(
-                                question = faq.question,
-                                answer = faq.answer
+                                faq = faq,
+                                onNavigate = onNavigate
                             )
-
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
@@ -114,9 +121,10 @@ fun FaqScreen(
 
 @Composable
 fun FaqItem(
-    question: String,
-    answer: String
+    faq: Faq,
+    onNavigate: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
 
     Column(
@@ -132,29 +140,73 @@ fun FaqItem(
                 .clickable { expanded = !expanded },
             verticalAlignment = Alignment.CenterVertically
         ) {
-
             Text(
-                text = question,
+                text = faq.question,
                 modifier = Modifier.weight(1f),
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
                 color = Color.Black
             )
-
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = null
             )
         }
 
-        if (expanded) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = answer,
-                fontSize = 14.sp,
-                color = Color.DarkGray,
-                lineHeight = 18.sp
-            )
+        AnimatedVisibility(visible = expanded) {
+            Column(modifier = Modifier.padding(top = 6.dp)) {
+
+                // Respuesta
+                Text(
+                    text = faq.answer,
+                    fontSize = 14.sp,
+                    color = Color.DarkGray,
+                    lineHeight = 18.sp
+                )
+
+                // Imagen inline
+                if (faq.actionType == "image" && faq.actionPayload != null) {
+                    val resId = context.resources.getIdentifier(
+                        faq.actionPayload, "drawable", context.packageName
+                    )
+                    if (resId != 0) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Image(
+                            painter = painterResource(id = resId),
+                            contentDescription = faq.question,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 220.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+
+                // Botón de navegación
+                if (faq.actionType == "navigate" && faq.actionPayload != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    TextButton(
+                        onClick = { onNavigate(faq.actionPayload) },
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = "Ver guía completa",
+                            fontFamily = Poppins,
+                            fontSize = 13.sp,
+                            color = Color(0xFF48835E)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = Color(0xFF48835E),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

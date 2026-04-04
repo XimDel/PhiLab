@@ -13,7 +13,13 @@
   },
   {
     "question": "¿Qué es un modelo de visión?",
-    "answer": "Es un sistema entrenado con muchas imágenes que permite reconocer y seguir objetos sin configuración manual."
+    "answer": "Es un sistema entrenado con muchas imágenes que permite reconocer y seguir objetos sin configuración manual. En la pantalla de laboratorio puedes seleccionar el modelo a usar y el umbral de confianza.",
+    "actionType": "image",
+    "actionPayload": "faq_models"
+  },
+  {
+    "question": "¿Qué es el umbral de confianza?",
+    "answer": "El umbral de confianza es el nivel mínimo de seguridad que debe tener una predicción para que el sistema la acepte como válida. Si es alto, detecta menos cosas pero con más precisión; si es bajo, detecta más pero con más errores."
   },
   {
     "question": "¿Qué significa FPS?",
@@ -21,15 +27,21 @@
   },
   {
     "question": "¿Qué es un marcador ArUco?",
-    "answer": "Es un patrón visual que permite convertir píxeles en medidas reales como centímetros, haciendo posibles cálculos físicos precisos."
+    "answer": "Es un patrón visual que permite convertir píxeles en medidas reales como centímetros, haciendo posibles cálculos físicos precisos. En la pantalla de laboratorio puedes seleccionar su tamaño.",
+    "actionType": "image",
+    "actionPayload": "faq_aruco"
   },
   {
     "question": "¿Puedo dibujar el ArUco?",
-    "answer": "Sí, pero puede introducir errores. Se recomienda imprimirlo para mayor precisión."
+    "answer": "Sí, pero puede introducir errores. Se recomienda imprimirlo para mayor precisión.",
+    "actionType": "navigate",
+    "actionPayload": "draw_aruco"
   },
   {
     "question": "¿Cómo mejorar la precisión del experimento?",
-    "answer": "Usa buena iluminación, fondo simple, un objeto visible y mantén la cámara fija durante la captura."
+    "answer": "Usa buena iluminación, fondo simple, un objeto visible y mantén la cámara fija durante la captura.",
+    "actionType": "navigate",
+    "actionPayload": "tips_module"
   },
   {
     "question": "¿Qué tipo de movimiento puedo analizar?",
@@ -41,6 +53,8 @@
   },
   {
     "question": "¿Cómo exporto resultados?",
-    "answer": "Ve a Resultados, selecciona un experimento, consulta y presiona exportar."
+    "answer": "Ve a Resultados, selecciona un experimento, consulta y presiona exportar.",
+    "actionType": "image",
+    "actionPayload": "faq_results"
   }
 ]
