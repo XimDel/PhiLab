@@ -68,7 +68,8 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun ArucoGeneratorScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToDrawGuide: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val markerIdOptions = remember { (0..49).map { it.toString() } }
@@ -83,7 +84,6 @@ fun ArucoGeneratorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    // Re-generate marker preview whenever id or size changes
     LaunchedEffect(markerId) {
         val bmp = withContext(Dispatchers.Default) {
             ArucoGenerator.generateBitmap(markerId, pixelSize = 600)
@@ -129,14 +129,38 @@ fun ArucoGeneratorScreen(
                 Text(
                     text = "GENERADOR DE\nArUco",
                     fontSize = 30.sp,
-                    lineHeight = 52.sp,
+                    lineHeight = 40.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = Poppins,
                     color = Color.Black,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(35.dp))
+                Spacer(modifier = Modifier.height(5.dp))
+
+                // ── Botón guía de dibujo
+                TextButton(
+                    onClick = onNavigateToDrawGuide,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = 12.dp, vertical = 4.dp
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.HelpOutline,
+                        contentDescription = null,
+                        tint = Color(0xFF48835E),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "¿No puedes imprimir?\nAprende a dibujar tu ArUco",
+                        fontFamily = Poppins,
+                        fontSize = 12.sp,
+                        color = Color(0xFF48835E)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // ArUco live preview
                 Box(
@@ -231,7 +255,6 @@ fun ArucoGeneratorScreen(
                 }
             }
 
-            // Snackbar
             SnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier
@@ -243,7 +266,6 @@ fun ArucoGeneratorScreen(
         }
     }
 
-    // Save confirmation dialog
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },

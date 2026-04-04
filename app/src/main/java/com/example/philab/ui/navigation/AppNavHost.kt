@@ -1,7 +1,13 @@
 package com.example.philab.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -11,23 +17,18 @@ import androidx.navigation.navArgument
 import com.example.philab.data.local.database.PhiLabDatabase
 import com.example.philab.data.repository.SessionRepository
 import com.example.philab.ui.camera.CameraPermissionScreen
-import com.example.philab.ui.lab.experiment.camera.CameraViewModel
 import com.example.philab.ui.history.HistoryScreen
-import com.example.philab.ui.home.HomeScreen
-import com.example.philab.ui.lab.experiment.camera.CameraScreen
-import com.example.philab.ui.lab.experiment.tips.PreExperimentTipsScreen
-import com.example.philab.ui.lab.menu.LabModuleScreen
 import com.example.philab.ui.history.ResultsScreen
+import com.example.philab.ui.home.HomeScreen
+import com.example.philab.ui.lab.arucogenerator.ArucoGeneratorScreen
+import com.example.philab.ui.lab.arucogenerator.DrawArucoScreen
+import com.example.philab.ui.lab.experiment.camera.CameraScreen
+import com.example.philab.ui.lab.experiment.camera.CameraViewModel
+import com.example.philab.ui.lab.experiment.tips.PreExperimentTipsScreen
+import com.example.philab.ui.lab.menu.FaqScreen
+import com.example.philab.ui.lab.menu.LabModuleScreen
 import com.example.philab.ui.theory.article.ArticleScreen
 import com.example.philab.ui.theory.module.TheoryModuleScreen
-import com.example.philab.ui.lab.arucogenerator.ArucoGeneratorScreen
-import com.example.philab.ui.lab.menu.FaqScreen
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 
 @Composable
 fun AppNavHost() {
@@ -79,7 +80,7 @@ fun AppNavHost() {
             )
         }
 
-        composable(route = Routes.FAQ_ROUTE) {
+        composable(Routes.FAQ_ROUTE) {
             FaqScreen(
                 onBack = { navController.popBackStack() }
             )
@@ -104,13 +105,12 @@ fun AppNavHost() {
             )
         }
 
-        // ResultsScreen desde sesión activa
         composable(Routes.RESULTS) {
             val results = cameraViewModel.experimentResults
             if (results != null) {
                 ResultsScreen(
                     results = results,
-                    onBack  = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
                     onNavigateHome = {
                         navController.navigate(Routes.HOME) {
                             popUpTo(Routes.HOME) { inclusive = true }
@@ -122,7 +122,6 @@ fun AppNavHost() {
             }
         }
 
-        // ResultsScreen desde historial
         composable(
             route = Routes.RESULTS_HISTORY,
             arguments = listOf(navArgument("sessionId") { type = NavType.LongType })
@@ -141,7 +140,7 @@ fun AppNavHost() {
             results?.let {
                 ResultsScreen(
                     results = it,
-                    onBack  = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
                     onNavigateHome = {
                         navController.navigate(Routes.HOME) {
                             popUpTo(Routes.HOME) { inclusive = true }
@@ -161,7 +160,16 @@ fun AppNavHost() {
         }
 
         composable(Routes.ARUCO_GENERATOR) {
-            ArucoGeneratorScreen(onBack = { navController.popBackStack() })
+            ArucoGeneratorScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToDrawGuide = { navController.navigate(Routes.DRAW_ARUCO) }
+            )
+        }
+
+        composable(Routes.DRAW_ARUCO) {
+            DrawArucoScreen(
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }
