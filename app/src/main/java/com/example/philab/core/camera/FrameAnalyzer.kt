@@ -23,7 +23,6 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ops.ResizeWithCropOrPadOp
-import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -43,25 +42,13 @@ import kotlin.math.min
  *  5. TFLite cada N frames async
  *  6. ArUco cada N frames
  *
- * FIXES originales (FIX 1–6): ver versión anterior.
- *
- * FIXES NUEVOS:
- *
  *  FIX 7 — Timestamp del sensor en lugar de System.currentTimeMillis():
  *    recordPoint() y el inicio de grabación usan image.imageInfo.timestamp
- *    (nanosegundos del sensor de cámara, jitter < 1 ms) en lugar de
- *    System.currentTimeMillis() (incluye latencia del pipeline, jitter 5–40 ms).
- *    Impacto: las derivadas numéricas en el pipeline de análisis mejoran
- *    directamente porque Δt es preciso. Las gráficas de velocidad y
- *    aceleración son más suaves sin necesitar más pasadas de smoother.
+ *    (nanosegundos del sensor de cámara, jitter < 1 ms).
  *
  *  FIX 8 — emaAlpha 0.5 → 0.15 en el centroide grabado:
- *    Con alpha=0.5 la constante de tiempo del EMA es ~1 frame, prácticamente
- *    sin efecto de suavizado. Con alpha=0.15 la constante de tiempo es ~6 frames
- *    (~200 ms a 25 fps), que corresponde a la escala temporal del ruido de
- *    tracking de cámara. El centroide que llega al SessionRecorder llega
- *    presuavizado en la escala correcta, reduciendo la carga del OutlierDetector
- *    y eliminando picos que el clipExtremes no alcanza a recortar bien.
+ *    Constante de tiempo ~6 frames (~200 ms a 25 fps), escala apropiada
+ *    para el ruido de tracking de cámara.
  */
 class FrameAnalyzer(
     private val detectorProvider: () -> TfliteObjectDetector,
@@ -78,8 +65,6 @@ class FrameAnalyzer(
     private val enterThresholdProvider: () -> Float,
     private val maxPerClassProvider: () -> Int,
     private val maxPerFrameProvider: () -> Int,
-    private val confirmFrames: Int = 2,
-    private val dropFrames: Int = 3,
     private val arucoEveryNFrames: Int = 7,
     private val detectionEveryNFrames: Int = 8,
     private val selectedCenterProvider: () -> Pair<Float, Float>?,
@@ -148,18 +133,13 @@ class FrameAnalyzer(
     private var currentAlpha = alphaOF
 
     // ── EMA centroide grabado ────────────────────────────────────────────────
-    // FIX 8: alpha reducido de 0.5 a 0.15.
-    // Con 0.5 la constante de tiempo era ~1 frame → sin suavizado real.
-    // Con 0.15 la constante de tiempo es ~6 frames (~200 ms a 25 fps),
-    // escala apropiada para el ruido de tracking de cámara.
+    // FIX 8: alpha=0.15 → constante de tiempo ~6 frames (~200 ms a 25 fps).
     private val emaAlpha = 0.15f
     private var emaX: Float? = null
     private var emaY: Float? = null
     private val maxJumpPx = 150f
 
     // ── FIX 7: timestamp del sensor para grabación ───────────────────────────
-    // Guardamos el timestamp del primer frame de grabación para pasarlo a
-    // SessionRecorder.start() y anclar el origen temporal al sensor.
     private var recordingStartTimestampNs = 0L
 
     // ── Emit dedup ───────────────────────────────────────────────────────────
@@ -170,32 +150,10 @@ class FrameAnalyzer(
     // ── Debug ────────────────────────────────────────────────────────────────
     private enum class TrackingSource { NONE, OPTICAL_FLOW, KALMAN, FALLBACK_DETECTOR, LOST }
 
-    private var ofUpdateCount = 0
-    private var ofFoundCount = 0
-    private var ofLostCount = 0
-    private var kalmanPredictCount = 0
-    private var fallbackDetectionCount = 0
-    private var consecutiveKalmanOnlyFrames = 0
-    private var maxKalmanOnlyFrames = 0
-
-    private var analyzerPerfWindowStartNs = 0L
-    private var analyzerPerfFrames = 0
-    private var analyzerFps = 0.0
-    private var lastFrameMs = 0.0
-
-    private var pointsThisSecond = 0
-    private var pointsPerSecond = 0
-    private var pointsWindowStartNs = 0L
-
     private var lastTrackingSource = TrackingSource.NONE
     private var lastTrackingDebug = ""
 
     override fun analyze(image: ImageProxy) {
-        val frameStartNs = System.nanoTime()
-
-        // FIX 7: extraer el timestamp del sensor lo antes posible, antes de
-        // cualquier procesamiento. imageInfo.timestamp es nanosegundos del
-        // sensor de cámara, monotónico y con jitter < 1 ms.
         val frameTimestampNs = image.imageInfo.timestamp
 
         try {
@@ -215,7 +173,6 @@ class FrameAnalyzer(
                 Imgproc.cvtColor(rgbMat, grayMat, Imgproc.COLOR_RGBA2GRAY)
 
                 // 2) Aplicar pendingDetection del hilo TFLite
-                // FIX 1: solo reiniciar OF si está inactivo
                 val pending = pendingDetection
                 if (pending != null) {
                     pendingDetection = null
@@ -276,7 +233,6 @@ class FrameAnalyzer(
                     }
 
                     val ofResult = if (opticalFlowTracker.isActive()) {
-                        ofUpdateCount++
                         opticalFlowTracker.update(grayMat)
                     } else {
                         OpticalFlowTracker.TrackResult.Lost
@@ -284,8 +240,6 @@ class FrameAnalyzer(
 
                     when (ofResult) {
                         is OpticalFlowTracker.TrackResult.Found -> {
-                            ofFoundCount++
-                            consecutiveKalmanOnlyFrames = 0
                             trackingSource = TrackingSource.OPTICAL_FLOW
                             currentAlpha = alphaOF
 
@@ -320,12 +274,8 @@ class FrameAnalyzer(
                         }
 
                         is OpticalFlowTracker.TrackResult.Lost -> {
-                            ofLostCount++
                             val predicted = bboxKalman.predict()
                             if (predicted != null) {
-                                kalmanPredictCount++
-                                consecutiveKalmanOnlyFrames++
-                                maxKalmanOnlyFrames = maxOf(maxKalmanOnlyFrames, consecutiveKalmanOnlyFrames)
                                 trackingSource = TrackingSource.KALMAN
                                 currentAlpha = alphaKalman
                                 lastTrackedCenter = Pair(
@@ -337,15 +287,12 @@ class FrameAnalyzer(
                                     closestDetectionToTracked() ?: latestAllDetections.firstOrNull()
                                 )
                             } else {
-                                // FIX 2: grace period — no reiniciar OF si acaba de iniciarse
                                 val ofGraceActive = opticalFlowTracker.framesAfterInit <
                                         opticalFlowTracker.GRACE_FRAMES
 
                                 val fallback = closestDetectionToTracked()
 
                                 if (fallback != null && !ofGraceActive) {
-                                    fallbackDetectionCount++
-                                    consecutiveKalmanOnlyFrames = 0
                                     trackingSource = TrackingSource.FALLBACK_DETECTOR
                                     currentAlpha = alphaKalman
 
@@ -355,7 +302,6 @@ class FrameAnalyzer(
                                                 grayMat,
                                                 fallback.toCvRect(grayMat.cols(), grayMat.rows())
                                             )
-                                            // FIX 3: NO resetear Kalman aquí
                                         } catch (_: Throwable) {}
                                     }
 
@@ -375,7 +321,6 @@ class FrameAnalyzer(
                                     smoothBbox(fallback.toAndroidRect(srcW, srcH), srcW, srcH, fallback)
 
                                 } else {
-                                    consecutiveKalmanOnlyFrames = 0
                                     trackingSource = TrackingSource.LOST
                                     smoothInit = false; lastTrackedCenter = null; null
                                 }
@@ -412,8 +357,7 @@ class FrameAnalyzer(
                     measurementManager.measureObject(trackedThisFrame, calibrated.cmPerPx)
                 else null
 
-                // 8) Grabar punto
-                // FIX 7: se pasa frameTimestampNs del sensor a recordPoint.
+                // 8) Grabar punto (FIX 7: timestamp del sensor)
                 if (isRecording() && sessionRecorder.isActive && trackedThisFrame != null) {
                     recordPoint(trackedThisFrame, calibrated, frameTimestampNs)
                 }
@@ -425,7 +369,6 @@ class FrameAnalyzer(
                 else "Obj. detectados: ${latestAllDetections.size}"
                 emitIfChanged(uiDetections, measurement, lastCalibrationState, status)
 
-                updateAnalyzerPerf(frameStartNs)
                 updateTrackingDebug()
 
             } catch (e: Exception) {
@@ -438,7 +381,6 @@ class FrameAnalyzer(
                 )
                 onTrackedDetection(null)
                 lastTrackingSource = TrackingSource.LOST
-                updateAnalyzerPerf(frameStartNs)
                 updateTrackingDebug()
             }
         } finally {
@@ -526,12 +468,6 @@ class FrameAnalyzer(
         latestAllDetections = emptyList()
         pendingDetection = null
         recordingStartTimestampNs = 0L
-        ofUpdateCount = 0; ofFoundCount = 0; ofLostCount = 0
-        kalmanPredictCount = 0; fallbackDetectionCount = 0
-        consecutiveKalmanOnlyFrames = 0; maxKalmanOnlyFrames = 0
-        analyzerPerfWindowStartNs = 0L; analyzerPerfFrames = 0
-        analyzerFps = 0.0; lastFrameMs = 0.0
-        pointsThisSecond = 0; pointsPerSecond = 0; pointsWindowStartNs = 0L
         lastTrackingSource = TrackingSource.NONE; lastTrackingDebug = ""
         onTrackingDebug("Tracking: Idle")
         emitIfChanged(emptyList(), null, CalibrationState.Idle, "Modelo de detección listo")
@@ -552,12 +488,8 @@ class FrameAnalyzer(
 
     /**
      * Registra un punto de posición en el SessionRecorder.
-     *
-     * FIX 7: recibe frameTimestampNs (timestamp del sensor del frame actual)
-     * y lo pasa a sessionRecorder.addPoint(). Si es el primer punto de la
-     * sesión, también lo pasa a sessionRecorder para anclar el origen temporal.
-     *
-     * FIX 8: emaAlpha reducido a 0.15 — suavizado efectivo de ~6 frames.
+     * FIX 7: usa frameTimestampNs del sensor para Δt preciso.
+     * FIX 8: emaAlpha=0.15 → suavizado efectivo de ~6 frames.
      */
     private fun recordPoint(
         tracked: UiDetection,
@@ -572,19 +504,12 @@ class FrameAnalyzer(
                 (abs(rawCx - prevX) > maxJumpPx || abs(rawCy - prevY) > maxJumpPx)
 
         if (!isJump) {
-            // FIX 8: emaAlpha = 0.15 en lugar de 0.5
             val cx = prevX?.let { it + emaAlpha * (rawCx - it) } ?: rawCx
             val cy = prevY?.let { it + emaAlpha * (rawCy - it) } ?: rawCy
             emaX = cx; emaY = cy
 
-            // FIX 7: primer punto de la sesión → anclar startTimestampNs
             if (recordingStartTimestampNs == 0L) {
                 recordingStartTimestampNs = frameTimestampNs
-                // Reiniciar el SessionRecorder con el timestamp correcto del sensor.
-                // start() ya fue llamado desde CameraViewModel, aquí solo actualizamos
-                // el origen temporal interno pasando el timestamp como primer addPoint.
-                // SessionRecorder.addPoint() acepta frameTimestampNs y calcula tMs
-                // como (frameTimestampNs - startTimeNs) / 1_000_000.
             }
 
             if (calibrated != null) {
@@ -592,16 +517,15 @@ class FrameAnalyzer(
                 sessionRecorder.addPoint(
                     xCm = cx * calibrated.cmPerPx,
                     yCm = cy * calibrated.cmPerPx,
-                    frameTimestampNs = frameTimestampNs   // FIX 7
+                    frameTimestampNs = frameTimestampNs
                 )
             } else {
                 sessionRecorder.addPoint(
                     xCm = cx,
                     yCm = cy,
-                    frameTimestampNs = frameTimestampNs   // FIX 7
+                    frameTimestampNs = frameTimestampNs
                 )
             }
-            pointsThisSecond++
         }
     }
 
@@ -693,40 +617,8 @@ class FrameAnalyzer(
         if (status != lastStatus) { lastStatus = status; onStatus(status) }
     }
 
-    private fun updateAnalyzerPerf(frameStartNs: Long) {
-        val now = System.nanoTime()
-        lastFrameMs = (now - frameStartNs) / 1_000_000.0
-        if (analyzerPerfWindowStartNs == 0L) analyzerPerfWindowStartNs = now
-        analyzerPerfFrames++
-        val elapsedNs = now - analyzerPerfWindowStartNs
-        if (elapsedNs >= 1_000_000_000L) {
-            analyzerFps = analyzerPerfFrames * 1_000_000_000.0 / elapsedNs.toDouble()
-            analyzerPerfFrames = 0; analyzerPerfWindowStartNs = now
-        }
-        if (pointsWindowStartNs == 0L) pointsWindowStartNs = now
-        val pointsElapsedNs = now - pointsWindowStartNs
-        if (pointsElapsedNs >= 1_000_000_000L) {
-            pointsPerSecond = pointsThisSecond
-            pointsThisSecond = 0
-            pointsWindowStartNs = now
-        }
-    }
-
     private fun updateTrackingDebug() {
-        val debug = buildString {
-            append("Tracking: ").append(lastTrackingSource)
-            append(" | FPS: ").append(String.format(Locale.US, "%.1f", analyzerFps))
-            append(" | Frame: ").append(String.format(Locale.US, "%.1f", lastFrameMs)).append(" ms")
-            append(" | OF u/f/l: ").append(ofUpdateCount).append("/")
-                .append(ofFoundCount).append("/").append(ofLostCount)
-            append(" | Grace: ").append(opticalFlowTracker.framesAfterInit)
-                .append("/").append(opticalFlowTracker.GRACE_FRAMES)
-            append(" | Kalman: ").append(kalmanPredictCount)
-            append(" | K-streak: ").append(consecutiveKalmanOnlyFrames)
-            append(" | K-max: ").append(maxKalmanOnlyFrames)
-            append(" | Fallback: ").append(fallbackDetectionCount)
-            append(" | Pts/s: ").append(pointsPerSecond)
-        }
+        val debug = "Tracking: $lastTrackingSource"
         if (debug != lastTrackingDebug) { lastTrackingDebug = debug; onTrackingDebug(debug) }
     }
 

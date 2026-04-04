@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -139,7 +138,8 @@ fun CameraScreen(
             livePointCount = viewModel.livePointCount,
             isRunning = viewModel.isRunning,
             isCameraActive = viewModel.isCameraActive,
-            detectorInfo = detectorManager.detectorInfo
+            detectorInfo = detectorManager.detectorInfo,
+            trackingDebugInfo = viewModel.trackingDebugInfo
         )
 
         CameraOverlay(
@@ -163,8 +163,7 @@ fun CameraScreen(
             onStartStop = viewModel::toggleRunning,
             selectedObject = viewModel.selectedObject,
             onClearSelection = viewModel::clearSelectedObject,
-            calibrationState = viewModel.calibrationState,
-            trackingDebugInfo = viewModel.trackingDebugInfo
+            calibrationState = viewModel.calibrationState
         )
 
         viewModel.experimentResults?.let { results ->
@@ -201,7 +200,8 @@ private fun BoxScope.CameraStatsOverlay(
     livePointCount: Int,
     isRunning: Boolean,
     isCameraActive: Boolean,
-    detectorInfo: String
+    detectorInfo: String,
+    trackingDebugInfo: String
 ) {
     Column(
         modifier = Modifier
@@ -242,6 +242,11 @@ private fun BoxScope.CameraStatsOverlay(
                     fontWeight = FontWeight.Bold
                 )
             }
+            Text(
+                text = trackingDebugInfo,
+                color = Color.White.copy(alpha = 0.75f),
+                fontSize = 11.sp
+            )
         }
     }
 }
@@ -268,49 +273,9 @@ private fun CameraOverlay(
     onStartStop: () -> Unit,
     selectedObject: SelectedObject?,
     onClearSelection: () -> Unit,
-    calibrationState: CalibrationState,
-    trackingDebugInfo: String
+    calibrationState: CalibrationState
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-
-        var showDebugInfo by remember { mutableStateOf(false) }
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 30.dp)
-        ) {
-            IconButton(
-                onClick = { showDebugInfo = !showDebugInfo },
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(
-                        Color.Black.copy(alpha = 0.45f),
-                        shape = androidx.compose.foundation.shape.CircleShape
-                    )
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Info,
-                    contentDescription = "Debug info",
-                    tint = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            DropdownMenu(
-                expanded = showDebugInfo,
-                onDismissRequest = { showDebugInfo = false }
-            ) {
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = trackingDebugInfo,
-                            fontSize = 11.sp,
-                            lineHeight = 14.sp
-                        )
-                    },
-                    onClick = {}
-                )
-            }
-        }
 
         Column(
             modifier = Modifier
