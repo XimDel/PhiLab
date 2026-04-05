@@ -74,7 +74,7 @@ internal data class PdfUiOptions(
     val objeto: Boolean     = false,
     val resumen: Boolean    = true,
     val tabla: Boolean      = true,
-    val graficas: Boolean   = false,  // reservado para cuando Vico esté integrado
+    val graficas: Boolean   = false,
 )
 
 private fun PdfUiOptions.toPdfOptions() = PdfExporter.PdfOptions(
@@ -87,6 +87,7 @@ private fun PdfUiOptions.toPdfOptions() = PdfExporter.PdfOptions(
     includeObjeto     = objeto,
     includeResumen    = resumen,
     includeTabla      = tabla,
+    includeGraficas   = graficas,
 )
 
 // ─── BottomSheet principal ────────────────────────────────────────────────────
@@ -367,12 +368,7 @@ private fun PdfTabContent(
     ToggleSection(title = "Resultados") {
         ToggleRow("Resumen cinemático", options.resumen) { onChange(options.copy(resumen = it)) }
         ToggleRow("Tabla de datos",     options.tabla)   { onChange(options.copy(tabla = it)) }
-        ToggleRow(
-            label   = "Gráficas  (próximamente)",
-            checked = false,
-            enabled = false,
-            onToggle = {}
-        )
+        ToggleRow("Gráficas",           options.graficas) { onChange(options.copy(graficas = it)) }
     }
 
     // Preview de filas
