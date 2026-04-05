@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.example.philab.domain.experiment.ExperimentResults
+import com.example.philab.domain.experiment.MotionClassifier
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -102,7 +103,6 @@ object PdfExporter {
         if (options.includeUnidad)     metaRows += "Unidad" to unit
         if (options.includeEscala && results.isCalibrated)
             metaRows += "Escala" to "${"%.4f".format(results.cmPerPx)} cm/px"
-
         if (metaRows.isNotEmpty()) {
             renderer.drawSectionTitle("INFORMACION DE LA SESIÓN")
             renderer.drawKeyValueCard(metaRows)
@@ -110,6 +110,9 @@ object PdfExporter {
 
         if (options.includeResumen) {
             renderer.drawSectionTitle("RESULTADOS CINEMÁTICOS")
+            renderer.drawKeyValueCard(
+                listOf("Tipo de movimiento" to MotionClassifier.classify(results))
+            )
             renderer.drawKpiGrid(
                 listOf(
                     Triple("Distancia total",   "${"%.2f".format(results.totalDistanceCm)} $unit",  COL_ACCENT),

@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.example.philab.domain.experiment.ExperimentResults
+import com.example.philab.domain.experiment.MotionClassifier
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -66,6 +67,7 @@ object CsvExporter {
         // ── Resumen cinemático ────────────────────────────────────────────────
         if (options.includeResumen) {
             sb.appendLine("# RESULTADOS CINEMÁTICOS")
+            sb.appendLine("Tipo de movimiento,${MotionClassifier.classify(results)}")
             sb.appendLine("Distancia total ($unit),${"%.4f".format(results.totalDistanceCm)}")
             sb.appendLine("Desplazamiento ($unit),${"%.4f".format(results.displacementCm)}")
             sb.appendLine("Velocidad media ($unit/s),${"%.4f".format(results.avgSpeedCmS)}")
