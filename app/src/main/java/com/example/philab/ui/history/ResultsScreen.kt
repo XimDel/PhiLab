@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.philab.R
 import com.example.philab.domain.experiment.ExperimentResults
+import com.example.philab.domain.experiment.MotionClassifier
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -46,7 +47,7 @@ fun ResultsScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    val unit       = results.unit
+    val unit = results.unit
 
     val sheetState  = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showSheet   by remember { mutableStateOf(false) }
@@ -55,6 +56,9 @@ fun ResultsScreen(
     val dateFormatter = remember {
         SimpleDateFormat("dd/MM/yyyy  HH:mm:ss", Locale.getDefault())
     }
+
+    // Calculado una sola vez por sesión
+    val motionType = remember(results) { MotionClassifier.classify(results) }
 
     if (showSheet) {
         ExportBottomSheet(
@@ -69,10 +73,10 @@ fun ResultsScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
-            painter      = painterResource(id = R.drawable.pl_resultsscreen),
+            painter            = painterResource(id = R.drawable.pl_resultsscreen),
             contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier     = Modifier.fillMaxSize()
+            contentScale       = ContentScale.Crop,
+            modifier           = Modifier.fillMaxSize()
         )
 
         Scaffold(
@@ -92,8 +96,8 @@ fun ResultsScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor         = Color.White.copy(alpha = 0.85f),
-                        titleContentColor      = TextPrimary,
+                        containerColor             = Color.White.copy(alpha = 0.85f),
+                        titleContentColor          = TextPrimary,
                         navigationIconContentColor = TextPrimary
                     )
                 )
@@ -126,9 +130,9 @@ fun ResultsScreen(
                             ) {
                                 Text("⚠", fontSize = 13.sp)
                                 Text(
-                                    text  = "Sin calibración ArUco — valores en píxeles. " +
+                                    text     = "Sin calibración ArUco — valores en píxeles. " +
                                             "Para obtener unidades reales (cm) usa un marcador ArUco de tamaño conocido.",
-                                    color = Color(0xFF795548),
+                                    color    = Color(0xFF795548),
                                     fontSize = 12.sp
                                 )
                             }
@@ -139,17 +143,17 @@ fun ResultsScreen(
                     item {
                         SectionTitle("Información de la sesión")
                         MetaCard {
-                            MetaRow("Objeto",           results.selectedLabel)
+                            MetaRow("Objeto",          results.selectedLabel)
                             RowDivider()
-                            MetaRow("Fecha",            dateFormatter.format(Date(results.recordedAt)))
+                            MetaRow("Fecha",           dateFormatter.format(Date(results.recordedAt)))
                             RowDivider()
-                            MetaRow("Duración",         formatDuration(results.durationMs))
+                            MetaRow("Duración",        formatDuration(results.durationMs))
                             RowDivider()
-                            MetaRow("Muestras",         "${results.sampleCount} pts")
+                            MetaRow("Muestras",        "${results.sampleCount} pts")
                             RowDivider()
-                            MetaRow("Frecuencia real",  "${"%.1f".format(results.sampleRateHz)} Hz")
+                            MetaRow("Frecuencia real", "${"%.1f".format(results.sampleRateHz)} Hz")
                             RowDivider()
-                            MetaRow("Unidad",           unit)
+                            MetaRow("Unidad",          unit)
                             if (results.isCalibrated) {
                                 RowDivider()
                                 MetaRow("Escala", "${"%.4f".format(results.cmPerPx)} cm/px")
@@ -157,7 +161,7 @@ fun ResultsScreen(
                         }
                     }
 
-                    // Resultados cinemáticos
+                    // Resultados cinemáticos — incluye MotionClassifier
                     item {
                         SectionTitle("Resultados cinemáticos")
                         MetaCard {
@@ -168,10 +172,12 @@ fun ResultsScreen(
                             MetaRow("Velocidad media",   "${"%.2f".format(results.avgSpeedCmS)} $unit/s")
                             RowDivider()
                             MetaRow("Aceleración media", "${"%.2f".format(results.avgAccelCmS2)} $unit/s²")
+                            RowDivider()
+                            MetaRow("Tipo de movimiento", motionType, valueMaxLines = 2)
                         }
                     }
 
-                    // ── Gráficas — ExperimentCharts con el pipeline nuevo ────
+                    // Gráficas
                     item {
                         SectionTitle("Gráficas")
                         ExperimentCharts(results = results)
@@ -236,10 +242,10 @@ fun ResultsScreen(
                                 .background(Color(0xFFEEEEF2))
                         ) {
                             Icon(
-                                imageVector     = Icons.Filled.Home,
+                                imageVector        = Icons.Filled.Home,
                                 contentDescription = "Ir al inicio",
-                                tint            = AccentGreen,
-                                modifier        = Modifier.size(24.dp)
+                                tint               = AccentGreen,
+                                modifier           = Modifier.size(24.dp)
                             )
                         }
 
@@ -362,15 +368,30 @@ private fun MetaCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun MetaRow(label: String, value: String) {
+private fun MetaRow(label: String, value: String, valueMaxLines: Int = 1) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = TextSecondary, fontSize = 13.sp)
-        Text(value, color = TextPrimary,   fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            text     = label,
+            color    = TextSecondary,
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text      = value,
+            color     = TextPrimary,
+            fontSize  = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign  = TextAlign.End,
+            maxLines   = valueMaxLines,
+            modifier   = Modifier
+                .weight(1.4f)
+                .wrapContentWidth(androidx.compose.ui.Alignment.End)
+        )
     }
 }
 
