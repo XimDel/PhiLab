@@ -26,10 +26,10 @@ object PdfExporter {
     data class PdfOptions(
         val includeFecha: Boolean      = true,
         val includeDuracion: Boolean   = true,
-        val includeMuestras: Boolean   = false,
-        val includeFrecuencia: Boolean = false,
-        val includeEscala: Boolean     = false,
-        val includeUnidad: Boolean     = false,
+        val includeMuestras: Boolean   = true,
+        val includeFrecuencia: Boolean = true,
+        val includeEscala: Boolean     = true,
+        val includeUnidad: Boolean     = true,
         val includeObjeto: Boolean     = false,
         val includeResumen: Boolean    = true,
         val includeTabla: Boolean      = true,
@@ -177,7 +177,7 @@ object PdfExporter {
                 points    = chart.position,
                 yLabel    = unit,
                 lineColor = COL_LINE_POS,
-                stats     = null
+                stats     = seriesStats(chart.position)
             )
 
             // Velocidad — con estadísticas

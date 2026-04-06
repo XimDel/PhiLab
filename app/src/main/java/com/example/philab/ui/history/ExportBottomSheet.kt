@@ -42,9 +42,9 @@ private val ToggleUnselected = Color(0xFFB7B3B3)
 private data class CsvUiOptions(
     val fecha: Boolean        = true,
     val duracion: Boolean     = true,
-    val muestras: Boolean     = false,
-    val frecuencia: Boolean   = false,
-    val escala: Boolean       = false,
+    val muestras: Boolean     = true,
+    val frecuencia: Boolean   = true,
+    val escala: Boolean       = true,
     val unidad: Boolean       = false,
     val objeto: Boolean       = false,
     val resumen: Boolean      = true,
@@ -67,14 +67,14 @@ private fun CsvUiOptions.toCsvOptions() = CsvExporter.CsvOptions(
 internal data class PdfUiOptions(
     val fecha: Boolean      = true,
     val duracion: Boolean   = true,
-    val muestras: Boolean   = false,
-    val frecuencia: Boolean = false,
-    val escala: Boolean     = false,
+    val muestras: Boolean   = true,
+    val frecuencia: Boolean = true,
+    val escala: Boolean     = true,
     val unidad: Boolean     = false,
     val objeto: Boolean     = false,
     val resumen: Boolean    = true,
     val tabla: Boolean      = true,
-    val graficas: Boolean   = false,
+    val graficas: Boolean   = true,
 )
 
 private fun PdfUiOptions.toPdfOptions() = PdfExporter.PdfOptions(
