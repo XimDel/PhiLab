@@ -59,6 +59,24 @@ object PdfExporter {
     private val FONT_BOLD   = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     private val FONT_NORMAL = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
 
+    // ── Estadísticas de una serie ─────────────────────────────────────────────
+
+    private data class SeriesStats(
+        val mean:  Float,
+        val min:   Float,
+        val max:   Float,
+        val error: Float   // semirango = (max - min) / 2
+    )
+
+    private fun seriesStats(series: List<Pair<Float, Float>>): SeriesStats? {
+        if (series.isEmpty()) return null
+        val values = series.map { it.second }
+        val mean   = values.average().toFloat()
+        val min    = values.minOrNull() ?: return null
+        val max    = values.maxOrNull() ?: return null
+        return SeriesStats(mean = mean, min = min, max = max, error = (max - min) / 2f)
+    }
+
     // ── API pública ───────────────────────────────────────────────────────────
 
     fun saveToDownloads(
@@ -152,23 +170,32 @@ object PdfExporter {
             ).chart
 
             renderer.drawSectionTitle("GRÁFICAS")
+
+            // Posición — sin estadísticas
             renderer.drawChart(
-                title     = "Posición  x(t)",
+                title     = "Posición vs Tiempo",
                 points    = chart.position,
                 yLabel    = unit,
-                lineColor = COL_LINE_POS
+                lineColor = COL_LINE_POS,
+                stats     = null
             )
+
+            // Velocidad — con estadísticas
             renderer.drawChart(
-                title     = "Velocidad  dx/dt",
+                title     = "Velocidad vs Tiempo",
                 points    = chart.velocity,
                 yLabel    = "$unit/s",
-                lineColor = COL_LINE_VEL
+                lineColor = COL_LINE_VEL,
+                stats     = seriesStats(chart.velocity)
             )
+
+            // Aceleración — con estadísticas
             renderer.drawChart(
-                title     = "Aceleración  d²x/dt²",
+                title     = "Aceleración vs Tiempo",
                 points    = chart.acceleration,
                 yLabel    = "$unit/s²",
-                lineColor = COL_LINE_ACCEL
+                lineColor = COL_LINE_ACCEL,
+                stats     = seriesStats(chart.acceleration)
             )
         }
 
@@ -324,22 +351,31 @@ object PdfExporter {
             cursorY += 4f
         }
 
+        /**
+         * Dibuja una gráfica de línea.
+         * Si [stats] != null, agrega debajo del chart las dos líneas:
+         *   v = media ± error  unidad
+         *   Rango: [min, max] unidad
+         */
         fun drawChart(
-            title: String,
-            points: List<Pair<Float, Float>>,
-            yLabel: String,
-            lineColor: Int
+            title:     String,
+            points:    List<Pair<Float, Float>>,
+            yLabel:    String,
+            lineColor: Int,
+            stats:     SeriesStats? = null
         ) {
-            val chartH = 120f
-            ensureSpace(chartH + 50f)
+            val chartH  = 120f
+            // Altura extra reservada para las estadísticas cuando las hay
+            val statsH  = if (stats != null) 34f else 0f
+            ensureSpace(chartH + 50f + statsH)
 
-            // Título
+            // Título de la gráfica
             textPaint.apply { typeface = FONT_BOLD; textSize = 8f; color = COL_TEXT_SEC }
             canvas.drawText(title, MARGIN, cursorY + 10f, textPaint)
             cursorY += 16f
 
             if (points.size < 2) {
-                cursorY += chartH + 14f
+                cursorY += chartH + 14f + statsH
                 return
             }
 
@@ -348,14 +384,14 @@ object PdfExporter {
             val chartLeft   = MARGIN + 32f
             val chartRight  = MARGIN + CONTENT_W
 
-            // Fondo
+            // Fondo del área de la gráfica
             rectPaint.color = COL_BG_SECTION
             canvas.drawRoundRect(
                 RectF(MARGIN, chartTop, MARGIN + CONTENT_W, chartBottom + 16f),
                 6f, 6f, rectPaint
             )
 
-            // Rango
+            // Rango de datos
             val minT   = points.first().first
             val maxT   = points.last().first
             val minY   = points.minOf { it.second }
@@ -441,6 +477,50 @@ object PdfExporter {
             canvas.drawPath(linePath, linePaint)
 
             cursorY += chartH + 22f
+
+            // ── Estadísticas debajo de la gráfica ─────────────────────────────
+            if (stats != null) {
+                // Símbolo según la etiqueta Y
+                val sym = when {
+                    yLabel.contains("s²") || yLabel.contains("s2") -> "a"
+                    yLabel.contains("/s")                           -> "v"
+                    else                                            -> "x"
+                }
+                val meanFmt  = "%.2f".format(stats.mean)
+                val errorFmt = "%.2f".format(stats.error)
+                val minFmt   = "%.2f".format(stats.min)
+                val maxFmt   = "%.2f".format(stats.max)
+
+                val valueLine = "$sym = $meanFmt ± $errorFmt $yLabel"
+                val rangeLine = "Rango: [$minFmt, $maxFmt] $yLabel"
+
+                // Línea divisoria sutil
+                val divPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color       = COL_DIVIDER
+                    strokeWidth = 0.5f
+                }
+                canvas.drawLine(MARGIN + 4f, cursorY, MARGIN + CONTENT_W - 4f, cursorY, divPaint)
+                cursorY += 6f
+
+                // "v = media ± error unidad" en color del acento de la serie
+                textPaint.apply {
+                    typeface  = FONT_BOLD
+                    textSize  = 8.5f
+                    color     = lineColor
+                    textAlign = Paint.Align.LEFT
+                }
+                canvas.drawText(valueLine, MARGIN + 8f, cursorY + 9f, textPaint)
+                cursorY += 13f
+
+                // "Rango: [min, max] unidad" en color secundario
+                textPaint.apply {
+                    typeface = FONT_NORMAL
+                    textSize = 8f
+                    color    = COL_TEXT_SEC
+                }
+                canvas.drawText(rangeLine, MARGIN + 8f, cursorY + 9f, textPaint)
+                cursorY += 16f
+            }
         }
 
         fun drawTable(headers: List<String>, rows: List<List<String>>) {
