@@ -45,7 +45,7 @@ import com.patrykandpatrick.vico.core.component.shape.Shapes
 import com.patrykandpatrick.vico.core.marker.MarkerLabelFormatter
 import java.util.Locale
 
-// ── Paleta ────────────────────────────────────────────────────────────────────
+// Paleta
 private val BgCard        = Color.White.copy(alpha = 0.85f)
 private val AccentGreen   = Color(0xFF1D9E75)
 private val AccentBlue    = Color(0xFF2196F3)
@@ -61,7 +61,7 @@ private enum class GraphTab(val label: String, val emoji: String, val color: Col
     ACCEL   ("Aceleración", "🚀", AccentOrange)
 }
 
-// ── Estadísticas de una serie ─────────────────────────────────────────────────
+// Estadísticas de una serie
 private data class SeriesStats(
     val mean:  Float,
     val min:   Float,
@@ -80,7 +80,6 @@ private data class SeriesStats(
     }
 }
 
-// ── Estado inmutable con producers ya poblados ────────────────────────────────
 private class ReadyChartState(
     val data: ChartData,
     val posProducer:   ChartEntryModelProducer,
@@ -97,7 +96,7 @@ private class ReadyChartState(
     val accelStats: SeriesStats?,
 )
 
-// ── Calcula el rango Y con padding del 12 % ───────────────────────────────────
+// rango
 private fun List<Pair<Float, Float>>.yRange(): Pair<Float, Float> {
     if (isEmpty()) return 0f to 1f
     val values = map { it.second }
@@ -119,9 +118,6 @@ private fun expandYRange(min: Float, max: Float, factor: Float): Pair<Float, Flo
     return (center - halfRange) to (center + halfRange)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTE PRINCIPAL
-// ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun ExperimentCharts(
     results: ExperimentResults,
@@ -217,7 +213,6 @@ fun ExperimentCharts(
     ) {
         Column(modifier = Modifier.padding(bottom = 16.dp)) {
 
-            // Tabs
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -259,7 +254,6 @@ fun ExperimentCharts(
 
             Spacer(Modifier.height(6.dp))
 
-            // CONTENIDO (solo gráfica + slider)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -357,7 +351,6 @@ fun ExperimentCharts(
     }
 }
 
-// ── Slider de escala vertical ─────────────────────────────────────────────────
 
 /**
  * Slider que amplía el rango Y para ver la curva "de lejos" (zoom-out vertical).
@@ -384,7 +377,6 @@ private fun YScaleSlider(
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Icono ↕ que se ilumina cuando el slider no está en 1×
         Text(
             text     = "↕",
             color    = if (active) accentColor else TextMuted,
@@ -395,7 +387,7 @@ private fun YScaleSlider(
             value         = scaleFactor,
             onValueChange = onScaleChange,
             valueRange    = 1f..10f,
-            steps         = 17,   // 18 pasos = incrementos de 0.5×
+            steps         = 17,   // 18 pasos - incrementos de 0.5×
             colors        = SliderDefaults.colors(
                 thumbColor         = accentColor,
                 activeTrackColor   = accentColor,
@@ -406,7 +398,6 @@ private fun YScaleSlider(
             modifier = Modifier.weight(1f)
         )
 
-        // Etiqueta del factor: "1×" o "3.4×"
         Text(
             text       = if (!active) "1×" else "${"%.1f".format(scaleFactor)}×",
             color      = if (active) accentColor else TextMuted,
@@ -418,7 +409,7 @@ private fun YScaleSlider(
     }
 }
 
-// ── Fila de estadísticas ──────────────────────────────────────────────────────
+// Fila de estadísticas
 
 @Composable
 private fun SeriesStatsRow(
@@ -468,7 +459,7 @@ private fun SeriesStatsRow(
     }
 }
 
-// ── Series del demo ───────────────────────────────────────────────────────────
+// Series del demo
 
 private fun buildDemoChartData(results: ExperimentResults): ChartData {
     val dt = 1f / 23f
@@ -501,7 +492,7 @@ private fun buildDemoChartData(results: ExperimentResults): ChartData {
     )
 }
 
-// ── Formatter eje X ───────────────────────────────────────────────────────────
+// Formatter eje X
 
 @Composable
 private fun rememberTimeFormatter(
@@ -515,8 +506,6 @@ private fun rememberTimeFormatter(
     }
 }
 
-// ── Extensiones ───────────────────────────────────────────────────────────────
-
 private fun List<Pair<Float, Float>>.safeEntries() =
     if (isEmpty()) listOf(entryOf(0f, 0f))
     else mapIndexed { index, (_, value) ->
@@ -529,7 +518,7 @@ private fun List<Pair<Float, Float>>.timeMap(): Map<Int, Float> =
 private fun Float.safeY(): Float =
     if (isFinite()) this else 0f
 
-// ── Chip de pestaña ───────────────────────────────────────────────────────────
+// Chip
 
 @Composable
 private fun GraphTabChip(
@@ -567,7 +556,7 @@ private fun GraphTabChip(
     }
 }
 
-// ── Gráfica Vico ──────────────────────────────────────────────────────────────
+// Gráfica Vico
 
 @Composable
 private fun VicoLineChart(
@@ -594,8 +583,6 @@ private fun VicoLineChart(
         }
     }
 
-    // Sin remember: debe reconstruirse cada vez que cambia el rango Y
-    // (el remember aquí evitaría que Vico vea el nuevo overrider al escalar)
     val valuesOverrider =
         if (fixedMinY != null && fixedMaxY != null) {
             AxisValuesOverrider.fixed(minY = fixedMinY, maxY = fixedMaxY)
