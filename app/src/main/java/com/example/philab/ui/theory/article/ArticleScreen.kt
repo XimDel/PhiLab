@@ -181,7 +181,7 @@ fun ArticleScreen(
 @Composable
 private fun ArticleScreenPreview() {
     ArticleScreen(
-        articleId = "error_experimental",
+        articleId = "aceleracion",
         onBack = {}
     )
 }
