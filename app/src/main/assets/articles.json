@@ -52,5 +52,11 @@
     "title": "Aceleración",
     "image": "image_article8",
     "content": "La aceleración es la magnitud que mide el cambio de velocidad respecto al tiempo.\n\nSe calcula como:\n\na = Δv / Δt\n\nEn el Sistema Internacional se mide en metros por segundo al cuadrado (m/s²). Una aceleración puede aumentar o disminuir la velocidad de un objeto, o cambiar su dirección."
+  },
+  {
+    "id": "incertidumbre_error",
+    "title": "Incertidumbre y Error Experimental",
+    "image": "image_article10",
+    "content": "La incertidumbre experimental representa el rango dentro del cual se espera que se encuentre el valor real de una medición. Debido a limitaciones de los instrumentos y condiciones del entorno, toda medición presenta cierto grado de error.\n\nUna forma sencilla de estimar la incertidumbre es mediante el semirango, calculado como la mitad de la diferencia entre el valor máximo y mínimo medido:\n\nerror = (valor_max - valor_min) / 2\n\nEste método permite expresar resultados como:\n\nvalor = valor_medio ± error\n\nfacilitando la interpretación de la precisión de los datos obtenidos."
   }
 ]
