@@ -62,16 +62,52 @@ private enum class GraphTab(val label: String, val emoji: String, val color: Col
     ACCEL   ("Aceleración", "🚀", AccentOrange)
 }
 
+// ── Estadísticas de una serie ─────────────────────────────────────────────────
+private data class SeriesStats(
+    val mean:  Float,
+    val min:   Float,
+    val max:   Float,
+    val error: Float   // (max - min) / 2  → semirango
+) {
+    companion object {
+        fun from(series: List<Pair<Float, Float>>): SeriesStats? {
+            if (series.isEmpty()) return null
+            val values = series.map { it.second }
+            val mean   = values.average().toFloat()
+            val min    = values.minOrNull() ?: return null
+            val max    = values.maxOrNull() ?: return null
+            return SeriesStats(mean = mean, min = min, max = max, error = (max - min) / 2f)
+        }
+    }
+}
+
 // ── Estado inmutable con producers ya poblados ────────────────────────────────
 private class ReadyChartState(
     val data: ChartData,
-    val posProducer: ChartEntryModelProducer,
-    val velProducer: ChartEntryModelProducer,
+    val posProducer:   ChartEntryModelProducer,
+    val velProducer:   ChartEntryModelProducer,
     val accelProducer: ChartEntryModelProducer,
-    val posTimeMap: Map<Int, Float>,
-    val velTimeMap: Map<Int, Float>,
-    val accelTimeMap: Map<Int, Float>
+    val posTimeMap:   Map<Int, Float>,
+    val velTimeMap:   Map<Int, Float>,
+    val accelTimeMap: Map<Int, Float>,
+    // Rangos Y calculados desde los datos reales (con padding)
+    val posMinY: Float,   val posMaxY:   Float,
+    val velMinY: Float,   val velMaxY:   Float,
+    val accelMinY: Float, val accelMaxY: Float,
+    // Estadísticas de velocidad y aceleración
+    val velStats:   SeriesStats?,
+    val accelStats: SeriesStats?,
 )
+
+// ── Calcula el rango Y con padding del 12 % ───────────────────────────────────
+private fun List<Pair<Float, Float>>.yRange(): Pair<Float, Float> {
+    if (isEmpty()) return 0f to 1f
+    val values = map { it.second }
+    val min = values.minOrNull() ?: 0f
+    val max = values.maxOrNull() ?: 1f
+    val pad = (max - min).coerceAtLeast(0.001f) * 0.12f
+    return (min - pad) to (max + pad)
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPAL
@@ -122,6 +158,15 @@ fun ExperimentCharts(
                 val velProducer   = ChartEntryModelProducer(velEntries)
                 val accelProducer = ChartEntryModelProducer(accelEntries)
 
+                // Calcular rangos Y reales con padding
+                val (posMin, posMax)     = chart.position.yRange()
+                val (velMin, velMax)     = chart.velocity.yRange()
+                val (accelMin, accelMax) = chart.acceleration.yRange()
+
+                // Estadísticas de velocidad y aceleración
+                val velStats   = SeriesStats.from(chart.velocity)
+                val accelStats = SeriesStats.from(chart.acceleration)
+
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                     readyState = ReadyChartState(
                         data          = chart,
@@ -130,7 +175,15 @@ fun ExperimentCharts(
                         accelProducer = accelProducer,
                         posTimeMap    = posTimeMap,
                         velTimeMap    = velTimeMap,
-                        accelTimeMap  = accelTimeMap
+                        accelTimeMap  = accelTimeMap,
+                        posMinY       = posMin,
+                        posMaxY       = posMax,
+                        velMinY       = velMin,
+                        velMaxY       = velMax,
+                        accelMinY     = accelMin,
+                        accelMaxY     = accelMax,
+                        velStats      = velStats,
+                        accelStats    = accelStats,
                     )
                 }
             } catch (e: Exception) { }
@@ -224,30 +277,61 @@ fun ExperimentCharts(
                         GraphTab.ACCEL    -> state.data.acceleration.size
                     }
 
-                    if (pointCount > 1) {
-                        val xFormatter = rememberTimeFormatter(timeMap)
-                        VicoLineChart(
-                            producer       = producer,
-                            lineColor      = selectedTab.color,
-                            gradientTop    = selectedTab.color.copy(alpha = 0.28f),
-                            gradientBottom = Color.Transparent,
-                            xFormatter     = xFormatter,
-                            yUnit          = yUnit,
-                            fixedMinY      = if (isDemo && selectedTab == GraphTab.ACCEL) 0f   else null,
-                            fixedMaxY      = if (isDemo && selectedTab == GraphTab.ACCEL) 3.5f else null
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(180.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text      = "Datos insuficientes para esta gráfica",
-                                color     = TextMuted,
-                                fontSize  = 13.sp,
-                                textAlign = TextAlign.Center
+                    // Rangos Y
+                    val fixedMinY = when (selectedTab) {
+                        GraphTab.POSITION -> if (isDemo) null else state.posMinY
+                        GraphTab.VELOCITY -> if (isDemo) null else state.velMinY
+                        GraphTab.ACCEL    -> if (isDemo) 0f   else state.accelMinY
+                    }
+                    val fixedMaxY = when (selectedTab) {
+                        GraphTab.POSITION -> if (isDemo) null else state.posMaxY
+                        GraphTab.VELOCITY -> if (isDemo) null else state.velMaxY
+                        GraphTab.ACCEL    -> if (isDemo) 3.5f else state.accelMaxY
+                    }
+
+                    // Stats para la pestaña activa (solo vel y accel)
+                    val activeStats = when (selectedTab) {
+                        GraphTab.POSITION -> null
+                        GraphTab.VELOCITY -> state.velStats
+                        GraphTab.ACCEL    -> state.accelStats
+                    }
+
+                    Column {
+                        if (pointCount > 1) {
+                            val xFormatter = rememberTimeFormatter(timeMap)
+                            VicoLineChart(
+                                producer       = producer,
+                                lineColor      = selectedTab.color,
+                                gradientTop    = selectedTab.color.copy(alpha = 0.28f),
+                                gradientBottom = Color.Transparent,
+                                xFormatter     = xFormatter,
+                                yUnit          = yUnit,
+                                fixedMinY      = fixedMinY,
+                                fixedMaxY      = fixedMaxY,
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text      = "Datos insuficientes para esta gráfica",
+                                    color     = TextMuted,
+                                    fontSize  = 13.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        // ── Bloque de estadísticas (solo vel y accel) ──────
+                        if (activeStats != null) {
+                            Spacer(Modifier.height(10.dp))
+                            SeriesStatsRow(
+                                stats     = activeStats,
+                                unit      = yUnit,
+                                accentColor = selectedTab.color
                             )
                         }
                     }
@@ -257,7 +341,69 @@ fun ExperimentCharts(
     }
 }
 
-// ── Series del demo
+// ── Fila de estadísticas ──────────────────────────────────────────────────────
+
+/**
+ * Muestra debajo de la gráfica:
+ *   v = 0.03 ± 0.05 cm/s
+ *   Rango: [-0.02, 0.08] cm/s
+ */
+@Composable
+private fun SeriesStatsRow(
+    stats:       SeriesStats,
+    unit:        String,
+    accentColor: Color,
+    modifier:    Modifier = Modifier
+) {
+    val fmt = remember(stats, unit) {
+        // Símbolo de la magnitud: primera letra del unit sin "/"
+        val sym = unit.substringBefore("/").trim().let {
+            when {
+                it.contains("s²") || it.contains("s2") -> "a"
+                it.contains("/s")                       -> "v"
+                else                                    -> "x"
+            }
+        }
+        val mean  = "%.2f".format(stats.mean)
+        val error = "%.2f".format(stats.error)
+        val min   = "%.2f".format(stats.min)
+        val max   = "%.2f".format(stats.max)
+        Triple("$sym = $mean ± $error $unit", "Rango: [$min, $max] $unit", sym)
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        // Línea divisoria sutil
+        HorizontalDivider(
+            thickness = 0.5.dp,
+            color     = DividerColor,
+            modifier  = Modifier.padding(horizontal = 4.dp)
+        )
+        Spacer(Modifier.height(6.dp))
+
+        // valor = media ± error
+        Text(
+            text       = fmt.first,
+            color      = accentColor,
+            fontSize   = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier   = Modifier.padding(horizontal = 8.dp)
+        )
+        // Rango: [min, max]
+        Text(
+            text     = fmt.second,
+            color    = TextSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+    }
+}
+
+// ── Series del demo ───────────────────────────────────────────────────────────
 
 private fun buildDemoChartData(results: ExperimentResults): ChartData {
     val dt = 1f / 23f
@@ -446,11 +592,10 @@ private fun VicoLineChart(
                 addExtremeLabelPadding = true
             )
         ),
-        marker             = marker,
+        marker              = marker,
         runInitialAnimation = false,
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp)
     )
-
 }
