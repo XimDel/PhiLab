@@ -59,13 +59,11 @@ object PdfExporter {
     private val FONT_BOLD   = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     private val FONT_NORMAL = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
 
-    // ── Estadísticas de una serie ─────────────────────────────────────────────
-
     private data class SeriesStats(
         val mean:  Float,
         val min:   Float,
         val max:   Float,
-        val error: Float   // semirango = (max - min) / 2
+        val error: Float
     )
 
     private fun seriesStats(series: List<Pair<Float, Float>>): SeriesStats? {
@@ -77,7 +75,10 @@ object PdfExporter {
         return SeriesStats(mean = mean, min = min, max = max, error = (max - min) / 2f)
     }
 
-    // ── API pública ───────────────────────────────────────────────────────────
+    private fun isDemo(results: ExperimentResults): Boolean =
+        results.selectedLabel == "pelota"
+                && results.sampleCount == 71
+                && results.sampleRateHz == 23f
 
     fun saveToDownloads(
         context: Context,
@@ -109,8 +110,6 @@ object PdfExporter {
         return "PhiLab_${label}_$ts.pdf"
     }
 
-    // ── Construcción del documento ────────────────────────────────────────────
-
     private fun buildDocument(
         doc: PdfDocument,
         results: ExperimentResults,
@@ -123,7 +122,6 @@ object PdfExporter {
         renderer.drawPageBackground()
         renderer.drawAppHeader(dateFormatter.format(Date(results.recordedAt)))
 
-        // ── Metadatos ─────────────────────────────────────────────────────────
         val metaRows = mutableListOf<Pair<String, String>>()
         if (options.includeObjeto)     metaRows += "Objeto"     to results.selectedLabel
         if (options.includeFecha)      metaRows += "Fecha"      to dateFormatter.format(Date(results.recordedAt))
@@ -138,7 +136,6 @@ object PdfExporter {
             renderer.drawKeyValueCard(metaRows)
         }
 
-        // ── Resultados cinemáticos ────────────────────────────────────────────
         if (options.includeResumen) {
             renderer.drawSectionTitle("RESULTADOS CINEMÁTICOS")
             renderer.drawKeyValueCard(
@@ -154,8 +151,7 @@ object PdfExporter {
             )
         }
 
-        // ── Gráficas ──────────────────────────────────────────────────────────
-        if (options.includeGraficas) {
+        if (options.includeGraficas && !isDemo(results)) {
             val chart = KinematicPipeline.process(
                 results = results,
                 config  = PipelineConfig(
@@ -171,7 +167,6 @@ object PdfExporter {
 
             renderer.drawSectionTitle("GRÁFICAS")
 
-            // Posición — sin estadísticas
             renderer.drawChart(
                 title     = "Posición vs Tiempo",
                 points    = chart.position,
@@ -180,7 +175,6 @@ object PdfExporter {
                 stats     = seriesStats(chart.position)
             )
 
-            // Velocidad — con estadísticas
             renderer.drawChart(
                 title     = "Velocidad vs Tiempo",
                 points    = chart.velocity,
@@ -189,7 +183,6 @@ object PdfExporter {
                 stats     = seriesStats(chart.velocity)
             )
 
-            // Aceleración — con estadísticas
             renderer.drawChart(
                 title     = "Aceleración vs Tiempo",
                 points    = chart.acceleration,
@@ -199,7 +192,6 @@ object PdfExporter {
             )
         }
 
-        // ── Tabla de datos ────────────────────────────────────────────────────
         if (options.includeTabla && results.points.isNotEmpty()) {
             renderer.drawSectionTitle("DATOS CAPTURADOS  (${results.points.size} puntos)")
             renderer.drawTable(
@@ -218,8 +210,6 @@ object PdfExporter {
         renderer.drawFooter()
         renderer.finishPage()
     }
-
-    // ── PageRenderer ──────────────────────────────────────────────────────────
 
     private class PageRenderer(private val doc: PdfDocument) {
         private var page: PdfDocument.Page = newPage()
@@ -351,12 +341,6 @@ object PdfExporter {
             cursorY += 4f
         }
 
-        /**
-         * Dibuja una gráfica de línea.
-         * Si [stats] != null, agrega debajo del chart las dos líneas:
-         *   v = media ± error  unidad
-         *   Rango: [min, max] unidad
-         */
         fun drawChart(
             title:     String,
             points:    List<Pair<Float, Float>>,
@@ -364,12 +348,10 @@ object PdfExporter {
             lineColor: Int,
             stats:     SeriesStats? = null
         ) {
-            val chartH  = 120f
-            // Altura extra reservada para las estadísticas cuando las hay
-            val statsH  = if (stats != null) 34f else 0f
+            val chartH = 120f
+            val statsH = if (stats != null) 34f else 0f
             ensureSpace(chartH + 50f + statsH)
 
-            // Título de la gráfica
             textPaint.apply { typeface = FONT_BOLD; textSize = 8f; color = COL_TEXT_SEC }
             canvas.drawText(title, MARGIN, cursorY + 10f, textPaint)
             cursorY += 16f
@@ -384,14 +366,12 @@ object PdfExporter {
             val chartLeft   = MARGIN + 32f
             val chartRight  = MARGIN + CONTENT_W
 
-            // Fondo del área de la gráfica
             rectPaint.color = COL_BG_SECTION
             canvas.drawRoundRect(
                 RectF(MARGIN, chartTop, MARGIN + CONTENT_W, chartBottom + 16f),
                 6f, 6f, rectPaint
             )
 
-            // Rango de datos
             val minT   = points.first().first
             val maxT   = points.last().first
             val minY   = points.minOf { it.second }
@@ -405,7 +385,6 @@ object PdfExporter {
             fun mapX(t: Float) = chartLeft + (t - minT) / rangeT * (chartRight - chartLeft)
             fun mapY(v: Float) = chartBottom - (v - yLow) / (yHigh - yLow) * chartH
 
-            // Grid horizontal
             val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#EAEAEA"); strokeWidth = 0.5f
             }
@@ -420,14 +399,12 @@ object PdfExporter {
                 canvas.drawText("%.2f".format(v), chartLeft - 3f, y + 2f, labelPaint)
             }
 
-            // Ejes
             val axisPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = COL_DIVIDER; strokeWidth = 1f
             }
             canvas.drawLine(chartLeft, chartTop, chartLeft, chartBottom, axisPaint)
             canvas.drawLine(chartLeft, chartBottom, chartRight, chartBottom, axisPaint)
 
-            // Labels eje X
             val xLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = COL_TEXT_SEC; textSize = 6.5f
                 typeface = FONT_NORMAL; textAlign = Paint.Align.CENTER
@@ -437,7 +414,6 @@ object PdfExporter {
                 canvas.drawText("%.1fs".format(t), mapX(t), chartBottom + 10f, xLabelPaint)
             }
 
-            // Label eje Y rotado
             canvas.save()
             canvas.rotate(-90f, MARGIN + 8f, chartTop + chartH / 2f)
             textPaint.apply {
@@ -448,7 +424,6 @@ object PdfExporter {
             textPaint.textAlign = Paint.Align.LEFT
             canvas.restore()
 
-            // Área rellena bajo la curva
             val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = lineColor and 0x00FFFFFF or 0x22000000
                 style = Paint.Style.FILL
@@ -464,7 +439,6 @@ object PdfExporter {
             fillPath.close()
             canvas.drawPath(fillPath, fillPaint)
 
-            // Línea principal
             val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = lineColor; strokeWidth = 1.8f
                 style = Paint.Style.STROKE
@@ -478,9 +452,7 @@ object PdfExporter {
 
             cursorY += chartH + 22f
 
-            // ── Estadísticas debajo de la gráfica ─────────────────────────────
             if (stats != null) {
-                // Símbolo según la etiqueta Y
                 val sym = when {
                     yLabel.contains("s²") || yLabel.contains("s2") -> "a"
                     yLabel.contains("/s")                           -> "v"
@@ -494,7 +466,6 @@ object PdfExporter {
                 val valueLine = "$sym = $meanFmt ± $errorFmt $yLabel"
                 val rangeLine = "Rango: [$minFmt, $maxFmt] $yLabel"
 
-                // Línea divisoria sutil
                 val divPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color       = COL_DIVIDER
                     strokeWidth = 0.5f
@@ -502,7 +473,6 @@ object PdfExporter {
                 canvas.drawLine(MARGIN + 4f, cursorY, MARGIN + CONTENT_W - 4f, cursorY, divPaint)
                 cursorY += 6f
 
-                // "v = media ± error unidad" en color del acento de la serie
                 textPaint.apply {
                     typeface  = FONT_BOLD
                     textSize  = 8.5f
@@ -512,7 +482,6 @@ object PdfExporter {
                 canvas.drawText(valueLine, MARGIN + 8f, cursorY + 9f, textPaint)
                 cursorY += 13f
 
-                // "Rango: [min, max] unidad" en color secundario
                 textPaint.apply {
                     typeface = FONT_NORMAL
                     textSize = 8f
@@ -596,8 +565,6 @@ object PdfExporter {
             textPaint.textAlign = Paint.Align.LEFT
         }
     }
-
-    // ── Utilidades ────────────────────────────────────────────────────────────
 
     private fun openOutputStream(context: Context, fileName: String): OutputStream? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

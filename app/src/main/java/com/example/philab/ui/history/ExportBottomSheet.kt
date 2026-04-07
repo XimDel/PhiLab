@@ -26,8 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// ─── Paleta ───────────────────────────────────────────────────────────────────
-
 private val SheetBg       = Color(0xFFF8F8FC)
 private val CardBg        = Color.White
 private val AccentGreen   = Color(0xFF1D9E75)
@@ -36,8 +34,6 @@ private val TextSecondary = Color(0xFF7A7A8C)
 private val DividerCol    = Color(0xFFEEEEF2)
 private val ToggleSelected   = Color(0xFF22BE8B)
 private val ToggleUnselected = Color(0xFFB7B3B3)
-
-// ─── Modelo de opciones UI ────────────────────────────────────────────────────
 
 private data class CsvUiOptions(
     val fecha: Boolean        = true,
@@ -90,26 +86,6 @@ private fun PdfUiOptions.toPdfOptions() = PdfExporter.PdfOptions(
     includeGraficas   = graficas,
 )
 
-// ─── BottomSheet principal ────────────────────────────────────────────────────
-
-/**
- * BottomSheet de exportación con tabs PDF / CSV y toggles individuales.
- *
- * Uso en ResultsScreen:
- *
- *   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
- *   var showSheet by remember { mutableStateOf(false) }
- *
- *   if (showSheet) {
- *       ExportBottomSheet(
- *           results    = results,
- *           sheetState = sheetState,
- *           onDismiss  = { showSheet = false },
- *           onCsvSaved = { success -> ... },
- *           onPdfExport = { options -> ... },  // implementar luego
- *       )
- *   }
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportBottomSheet(
@@ -126,6 +102,10 @@ fun ExportBottomSheet(
     var selectedTab  by remember { mutableIntStateOf(0) }
     var csvOptions   by remember { mutableStateOf(CsvUiOptions()) }
     var pdfOptions   by remember { mutableStateOf(PdfUiOptions()) }
+
+    val isDemo = results.selectedLabel == "pelota"
+            && results.sampleCount == 71
+            && results.sampleRateHz == 23f
 
     fun exportCsv() {
         if (isExporting) return
@@ -197,8 +177,6 @@ fun ExportBottomSheet(
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp)
         ) {
-
-            // ── Título ──
             Text(
                 text       = "Exportar resultados",
                 fontSize   = 18.sp,
@@ -207,7 +185,6 @@ fun ExportBottomSheet(
                 modifier   = Modifier.padding(top = 8.dp, bottom = 16.dp)
             )
 
-            // ── Tabs CSV / PDF ──
             ExportTabRow(
                 selectedTab = selectedTab,
                 onSelect    = { selectedTab = it }
@@ -215,7 +192,6 @@ fun ExportBottomSheet(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── Contenido del tab ──
             when (selectedTab) {
                 0 -> CsvTabContent(
                     results     = results,
@@ -225,18 +201,17 @@ fun ExportBottomSheet(
                     onExport    = { exportCsv() }
                 )
                 1 -> PdfTabContent(
-                    results     = results,
-                    options     = pdfOptions,
-                    onChange    = { pdfOptions = it },
-                    isExporting = isExporting,
-                    onExport    = { exportPdf() }
+                    results          = results,
+                    options          = pdfOptions,
+                    onChange         = { pdfOptions = it },
+                    isExporting      = isExporting,
+                    graficasDisabled = isDemo,
+                    onExport         = { exportPdf() }
                 )
             }
         }
     }
 }
-
-// ─── Tab row ─────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ExportTabRow(selectedTab: Int, onSelect: (Int) -> Unit) {
@@ -274,8 +249,6 @@ private fun ExportTabRow(selectedTab: Int, onSelect: (Int) -> Unit) {
     }
 }
 
-// ─── Tab CSV ──────────────────────────────────────────────────────────────────
-
 @Composable
 private fun CsvTabContent(
     results: ExperimentResults,
@@ -304,7 +277,6 @@ private fun CsvTabContent(
 
     Spacer(Modifier.height(8.dp))
 
-    // Preview de filas
     val totalRows = if (options.tabla) results.points.size else 0
     if (totalRows > 0) {
         Text(
@@ -342,14 +314,13 @@ private fun CsvTabContent(
     }
 }
 
-// ─── Tab PDF ──────────────────────────────────────────────────────────────────
-
 @Composable
 private fun PdfTabContent(
     results: ExperimentResults,
     options: PdfUiOptions,
     onChange: (PdfUiOptions) -> Unit,
     isExporting: Boolean = false,
+    graficasDisabled: Boolean = false,
     onExport: () -> Unit,
 ) {
     ToggleSection(title = "Metadata de la sesión") {
@@ -368,10 +339,22 @@ private fun PdfTabContent(
     ToggleSection(title = "Resultados") {
         ToggleRow("Resumen cinemático", options.resumen) { onChange(options.copy(resumen = it)) }
         ToggleRow("Tabla de datos",     options.tabla)   { onChange(options.copy(tabla = it)) }
-        ToggleRow("Gráficas",           options.graficas) { onChange(options.copy(graficas = it)) }
+        ToggleRow(
+            label    = "Gráficas",
+            checked  = options.graficas && !graficasDisabled,
+            enabled  = !graficasDisabled,
+            onToggle = { onChange(options.copy(graficas = it)) }
+        )
+        if (graficasDisabled) {
+            Text(
+                text     = "Experimento de demostración",
+                fontSize = 11.sp,
+                color    = TextSecondary,
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+            )
+        }
     }
 
-    // Preview de filas
     val totalRows = if (options.tabla) results.points.size else 0
     if (totalRows > 0) {
         Text(
@@ -408,8 +391,6 @@ private fun PdfTabContent(
         }
     }
 }
-
-// ─── Componentes internos ─────────────────────────────────────────────────────
 
 @Composable
 private fun ToggleSection(
