@@ -53,7 +53,7 @@ dependencies {
 
     // TFLite
     val tfliteVersion = "0.4.4"
-    val tfliteCoreVersion = "2.14.0"
+    val tfliteCoreVersion = "2.16.1"
     implementation("org.tensorflow:tensorflow-lite-task-vision:$tfliteVersion")
     implementation("org.tensorflow:tensorflow-lite:$tfliteCoreVersion")
     implementation("org.tensorflow:tensorflow-lite-support:$tfliteVersion")
