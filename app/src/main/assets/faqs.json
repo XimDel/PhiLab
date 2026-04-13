@@ -13,13 +13,15 @@
   },
   {
     "question": "¿Qué es un modelo de visión?",
-    "answer": "Es un sistema entrenado con muchas imágenes que permite reconocer y seguir objetos sin configuración manual. En la pantalla de laboratorio puedes seleccionar el modelo a usar y el umbral de confianza.",
+    "answer": "Es un sistema entrenado con muchas imágenes que permite reconocer y seguir objetos sin configuración manual. En la pantalla de laboratorio puedes seleccionar el modelo a usar.",
     "actionType": "image",
-    "actionPayload": "faq_models"
+    "actionPayload": "fq_models"
   },
   {
     "question": "¿Qué es el umbral de confianza?",
-    "answer": "El umbral de confianza es el nivel mínimo de seguridad que debe tener una predicción para que el sistema la acepte como válida. Si es alto, detecta menos cosas pero con más precisión; si es bajo, detecta más pero con más errores."
+    "answer": "El umbral de confianza es el nivel mínimo de seguridad que debe tener una predicción para que el sistema la acepte como válida. Si es alto, detecta menos cosas pero con más precisión; si es bajo, detecta más pero con más errores. En la pantalla de laboratorio puedes seleccionar el umbral de confianza.",
+    "actionType": "image",
+    "actionPayload": "fq_umbral"
   },
   {
     "question": "¿Qué significa FPS?",
