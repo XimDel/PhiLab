@@ -33,6 +33,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
+import androidx.compose.ui.text.style.TextAlign
 
 // ── Paleta de la app ──────────────────────────────────────────────────────────
 private val AppGreenPrimary    = Color(0xFF1D9E75)
@@ -488,13 +489,13 @@ private fun CameraOverlay(
                 }
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = onBack,
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(44.dp)
                             .background(
                                 Color(0x88000000),
                                 shape = androidx.compose.foundation.shape.CircleShape
@@ -504,14 +505,14 @@ private fun CameraOverlay(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
                     IconButton(
                         onClick = onToggleConfig,
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(44.dp)
                             .background(
                                 Color(0xFF289BAD),
                                 shape = androidx.compose.foundation.shape.CircleShape
@@ -521,28 +522,33 @@ private fun CameraOverlay(
                             imageVector = Icons.Filled.Settings,
                             contentDescription = "Configuración",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
                     Button(
                         onClick = onToggleCamera,
                         enabled = !isRunning,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCameraActive) Color(0xFF555577)
-                            else Color(0xFF2B77CB),
+                            containerColor = if (isCameraActive) Color(0xFF555577) else Color(0xFF2B77CB),
                             disabledContainerColor = Color(0xFF797676)
                         )
                     ) {
                         Text(
                             text = if (isCameraActive) "Detener cámara" else "Calibrar | Detectar",
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
 
                     Button(
                         onClick = onStartStop,
                         enabled = isCameraActive && selectedObject != null,
+                        modifier = Modifier.weight(0.7f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isRunning) Color.Red else AppGreenPrimary,
                             disabledContainerColor = Color(0xFF969191)
@@ -550,7 +556,9 @@ private fun CameraOverlay(
                     ) {
                         Text(
                             text = if (isRunning) "Detener" else "Iniciar",
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
