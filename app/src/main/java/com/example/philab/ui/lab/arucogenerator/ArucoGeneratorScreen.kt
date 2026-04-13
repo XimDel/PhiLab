@@ -125,7 +125,7 @@ fun ArucoGeneratorScreen(
                     .padding(horizontal = 22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(150.dp))
+                Spacer(modifier = Modifier.height(130.dp))
 
                 Text(
                     text = "GENERADOR DE\nArUco",
@@ -188,7 +188,7 @@ fun ArucoGeneratorScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(22.dp))
+                Spacer(modifier = Modifier.height(15.dp))
 
                 Surface(
                     modifier = Modifier
@@ -202,8 +202,8 @@ fun ArucoGeneratorScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         MarkerDropdownRow(
                             label = "Marker ID:",
@@ -223,7 +223,7 @@ fun ArucoGeneratorScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(15.dp))
 
                 Button(
                     onClick = { showSaveDialog = true },
@@ -236,7 +236,7 @@ fun ArucoGeneratorScreen(
                     ),
                     modifier = Modifier
                         .fillMaxWidth(0.50f)
-                        .height(56.dp)
+                        .height(52.dp)
                 ) {
                     if (isSaving) {
                         CircularProgressIndicator(
