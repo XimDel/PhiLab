@@ -34,6 +34,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
 
+// ── Paleta de la app ──────────────────────────────────────────────────────────
+private val AppGreenPrimary    = Color(0xFF1D9E75)
+private val AppGreenDark       = Color(0xFF2C4A3E)
+private val AppGreenLight      = Color(0xFFB8DDD1)
+private val AppGreenExtraLight = Color(0xFFE1F5EE)
+private val AppSurface         = Color(0xFFF5F9F7)
+private val AppTextPrimary     = Color(0xFF2C4A3E)
+private val AppTextSecondary   = Color(0xFF4A7A68)
+private val AppTextDisabled    = Color(0xFF8AADA4)
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 fun CameraScreen(
     onBack: () -> Unit,
@@ -299,8 +310,11 @@ private fun CameraOverlay(
                             .fillMaxHeight(0.92f)
                             .align(Alignment.Bottom),
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0x8C000000)
-                        )
+                            containerColor = AppSurface
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppGreenLight)
                     ) {
                         Column(
                             modifier = Modifier
@@ -402,7 +416,7 @@ private fun CameraOverlay(
                         onClick = onStartStop,
                         enabled = isCameraActive && selectedObject != null,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isRunning) Color.Red else Color(0xFF1D9E75),
+                            containerColor = if (isRunning) Color.Red else AppGreenPrimary,
                             disabledContainerColor = Color(0xFF969191)
                         ),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
@@ -420,15 +434,18 @@ private fun CameraOverlay(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 28.dp),
+                    .padding(bottom = 38.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (showConfig) {
                     Card(
                         modifier = Modifier.fillMaxWidth(0.92f),
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0x8C000000)
-                        )
+                            containerColor = AppSurface
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppGreenLight)
                     ) {
                         Column(Modifier.padding(12.dp)) {
                             Spacer(Modifier.height(8.dp))
@@ -487,7 +504,7 @@ private fun CameraOverlay(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver",
                             tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
@@ -504,7 +521,7 @@ private fun CameraOverlay(
                             imageVector = Icons.Filled.Settings,
                             contentDescription = "Configuración",
                             tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
@@ -527,13 +544,13 @@ private fun CameraOverlay(
                         onClick = onStartStop,
                         enabled = isCameraActive && selectedObject != null,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isRunning) Color.Red else Color(0xFF1D9E75),
+                            containerColor = if (isRunning) Color.Red else AppGreenPrimary,
                             disabledContainerColor = Color(0xFF969191)
                         )
                     ) {
                         Text(
                             text = if (isRunning) "Detener" else "Iniciar",
-                            fontSize = 12.sp
+                            fontSize = 11.sp
                         )
                     }
                 }
@@ -558,7 +575,7 @@ private fun ConfigPanelContent(
     onMarkerSizeCmChange: (Float) -> Unit
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Modelo", color = Color.White)
+        Text("Modelo", color = AppTextPrimary, fontWeight = FontWeight.Medium)
         Spacer(Modifier.width(6.dp))
         InfoTooltip("A mayor tamaño, mayor precisión y menos FPS")
     }
@@ -570,34 +587,55 @@ private fun ConfigPanelContent(
         onSelect = onSelectModel
     )
     Spacer(Modifier.height(10.dp))
-    Text("Umbral de Confianza", color = Color.White)
+    Text("Umbral de Confianza", color = AppTextPrimary, fontWeight = FontWeight.Medium)
     SensitivityRow(value = sensitivity, onChange = onSensitivityChange)
     Spacer(Modifier.height(10.dp))
-    Text("Máx. objetos por frame: $maxPerFrame", color = Color.White)
+    Text("Máx. objetos por frame: $maxPerFrame", color = AppTextPrimary)
     Slider(
         value = maxPerFrame.toFloat(),
         onValueChange = { onMaxPerFrameChange(it.toInt().coerceIn(1, 6)) },
         valueRange = 1f..6f,
-        steps = 4
+        steps = 4,
+        colors = SliderDefaults.colors(
+            thumbColor = AppGreenPrimary,
+            activeTrackColor = AppGreenPrimary,
+            inactiveTrackColor = AppGreenLight,
+            activeTickColor = Color.White,
+            inactiveTickColor = AppGreenPrimary,
+        )
     )
     Spacer(Modifier.height(10.dp))
-    Text("Máx. por clase: $maxPerClass", color = Color.White)
+    Text("Máx. por clase: $maxPerClass", color = AppTextPrimary)
     Slider(
         value = maxPerClass.toFloat(),
         onValueChange = { onMaxPerClassChange(it.toInt().coerceIn(1, 10)) },
         valueRange = 1f..10f,
-        steps = 8
+        steps = 8,
+        colors = SliderDefaults.colors(
+            thumbColor = AppGreenPrimary,
+            activeTrackColor = AppGreenPrimary,
+            inactiveTrackColor = AppGreenLight,
+            activeTickColor = Color.White,
+            inactiveTickColor = AppGreenPrimary,
+        )
     )
     Spacer(Modifier.height(10.dp))
     Text(
         "Tamaño marcador ArUco: ${"%.1f".format(markerSizeCm)} cm",
-        color = Color.White
+        color = AppTextPrimary
     )
     Slider(
         value = markerSizeCm,
         onValueChange = onMarkerSizeCmChange,
         valueRange = 1f..20f,
-        steps = 37
+        steps = 37,
+        colors = SliderDefaults.colors(
+            thumbColor = AppGreenPrimary,
+            activeTrackColor = AppGreenPrimary,
+            inactiveTrackColor = AppGreenLight,
+            activeTickColor = Color.White,
+            inactiveTickColor = AppGreenPrimary,
+        )
     )
     Spacer(Modifier.height(6.dp))
 }
@@ -614,9 +652,16 @@ private fun ModelDropdown(
             value = selectedModel.label, onValueChange = {}, readOnly = true, enabled = enabled,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                disabledTextColor = Color.Gray, focusedBorderColor = Color.White,
-                unfocusedBorderColor = Color.White, cursorColor = Color.White
+                focusedTextColor      = AppTextPrimary,
+                unfocusedTextColor    = AppTextPrimary,
+                disabledTextColor     = AppTextDisabled,
+                focusedBorderColor    = AppGreenPrimary,
+                unfocusedBorderColor  = AppGreenLight,
+                disabledBorderColor   = AppGreenExtraLight,
+                cursorColor           = AppGreenPrimary,
+                focusedTrailingIconColor   = AppGreenPrimary,
+                unfocusedTrailingIconColor = AppTextSecondary,
+                disabledTrailingIconColor  = AppTextDisabled
             ),
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
@@ -634,7 +679,7 @@ fun InfoTooltip(text: String) {
     Box {
         IconButton(onClick = { open = !open }, modifier = Modifier.size(24.dp)) {
             Icon(Icons.Filled.HelpOutline, contentDescription = "Info",
-                tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                tint = AppTextSecondary, modifier = Modifier.size(16.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text(text) }, onClick = { open = false })
@@ -646,14 +691,32 @@ fun InfoTooltip(text: String) {
 private fun SensitivityRow(value: Sensitivity, onChange: (Sensitivity) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Sensitivity.values().forEach { opt ->
-            FilterChip(selected = (opt == value), onClick = { onChange(opt) }, label = { Text(opt.label) })
+            FilterChip(
+                selected = (opt == value),
+                onClick = { onChange(opt) },
+                label = { Text(opt.label) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppGreenPrimary,
+                    selectedLabelColor     = Color.White,
+                    containerColor         = AppGreenExtraLight,
+                    labelColor             = AppTextSecondary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = (opt == value),
+                    selectedBorderColor   = AppGreenPrimary,
+                    selectedBorderWidth   = 0.dp,
+                    borderColor           = AppGreenLight,
+                    borderWidth           = 1.dp
+                )
+            )
         }
     }
 }
 
 @Composable
 private fun StatusChip(label: String, active: Boolean, onClick: (() -> Unit)? = null) {
-    val bg = if (active) Color(0xFF1D9E75) else Color(0xFF8B0000)
+    val bg = if (active) AppGreenPrimary else Color(0xFF8B0000)
     if (onClick != null) {
         Button(
             onClick = onClick,
