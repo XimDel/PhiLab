@@ -14,37 +14,38 @@ import org.opencv.imgproc.Imgproc
 import org.opencv.video.Video
 
 /**
- * OpticalFlowTracker — tracking LK con bbox estable.
+ * Rastrea un objeto usando flujo óptico (Lucas-Kanade) de forma estable.
  *
- * FIX BBOX (vs versión diagnóstico):
+ * La idea es detectar puntos “buenos” dentro de la región del objeto y seguirlos
+ * de un frame a otro. En lugar de recalcular el tamaño del bounding box cada vez,
+ * simplemente lo movemos usando la mediana del desplazamiento de esos puntos.
+ * Así evitamos que el cuadro se deforme o se “encoga” con el tiempo.
  *
- *   Antes: el nuevo bbox se calculaba como el bounding box de los feature
- *   points rastreados:
- *       x = xs.min(), y = ys.min(), w = xs.max()-xs.min(), h = ys.max()-ys.min()
- *
- *   Problema: Shi-Tomasi concentra features en esquinas/bordes con textura.
- *   El bbox resultante cubre solo esa región, no el objeto completo. Con cada
- *   reinit de features (cada REINIT_FEATURES_EVERY frames) la ROI se carga
- *   sobre el bbox encogido, acelerando la degradación. En 3–4 ciclos (~3s)
- *   el bbox podía reducirse al 30–40% del tamaño original.
- *
- *   Fix: preservar el tamaño del bbox del init y solo desplazarlo según el
- *   desplazamiento medio (mediana) de los features válidos en cada frame.
- *   Esto hace que el centroide grabado sea siempre el centro geométrico del
- *   objeto original, independientemente de donde estén los features.
- *
- *   Beneficios:
- *   - El bbox no se encoge → la IoU con TFLite se mantiene alta → menos reinits
- *   - Menos reinits → menos estados JustInitialized → menos saltos visuales
- *   - El centroide grabado no deriva → gráficas de posición más precisas
- *   - Objetos con textura uniforme (pelotas, bloques) se comportan igual que
- *     objetos con textura rica
+ * Para conseguir los puntos a rastrear sigue este orden:
+ * 1. Intenta detectar puntos (Shi-Tomasi) dentro del bbox.
+ * 2. Si no hay suficientes, busca en una zona un poco más grande alrededor.
+ * 3. Si aún falla, usa una grilla de puntos en el borde como último recurso.
  */
 class OpticalFlowTracker {
 
+    /**
+     * Resultado posible de cada llamada a [update].
+     */
     sealed class TrackResult {
+        /**
+         * El objeto fue rastreado correctamente en este fotograma.
+         *
+         * @property bbox Bounding box actualizado del objeto.
+         */
         data class Found(val bbox: Rect) : TrackResult()
+
+        /** El objeto se perdió y el tracker fue reiniciado. */
         object Lost : TrackResult()
+
+        /**
+         * El tracker acaba de ser inicializado. Se emite durante exactamente un fotograma
+         * para indicar que aún no hay desplazamiento calculable.
+         */
         object JustInitialized : TrackResult()
     }
 
@@ -53,13 +54,15 @@ class OpticalFlowTracker {
     private var initialized = false
     private var justInited = false
 
-    // FIX BBOX: guardamos el bbox original para preservar su tamaño
     private var currentBbox = Rect()
 
     private var framesSinceInit = 0
     private var framesSinceFeatureReinit = 0
 
+    /** Número de fotogramas de gracia tras la inicialización antes de evaluar pérdida. */
     val GRACE_FRAMES = 4
+
+    /** Fotogramas transcurridos desde la última llamada a [init]. */
     val framesAfterInit: Int get() = framesSinceInit
 
     private val lkWinSize = Size(15.0, 15.0)
@@ -77,6 +80,17 @@ class OpticalFlowTracker {
     private val cornersRaw = MatOfPoint()
     private val TAG = "OptFlowTracker"
 
+    /**
+     * Inicializa el tracker sobre un fotograma en escala de grises y un bounding box.
+     *
+     * Extrae puntos de interés dentro de [bbox], clona el fotograma como referencia
+     * para el siguiente [update] y registra el tamaño del bbox original.
+     * Si el Mat es inválido o el bbox resultante es demasiado pequeño, la inicialización
+     * falla silenciosamente y el tracker permanece inactivo.
+     *
+     * @param gray Fotograma actual en escala de grises.
+     * @param bbox Región del objeto a rastrear en coordenadas del fotograma.
+     */
     fun init(gray: Mat, bbox: Rect) {
         reset()
         if (!isValid(gray)) {
@@ -101,7 +115,6 @@ class OpticalFlowTracker {
         }
 
         prevGray = gray.clone()
-        // FIX BBOX: guardar el bbox del init como referencia de tamaño
         currentBbox = safe
         initialized = true
         justInited = true
@@ -110,6 +123,17 @@ class OpticalFlowTracker {
         Log.i(TAG, "INIT OK: ${trackedPoints.rows()} puntos, bbox=$safe")
     }
 
+    /**
+     * Actualiza el tracker con el fotograma actual y devuelve el resultado del rastreo.
+     *
+     * Ejecuta LK entre el fotograma anterior y [gray], filtra los puntos válidos,
+     * calcula el desplazamiento mediano y lo aplica al bbox preservando su tamaño.
+     * Cada [REINIT_FEATURES_EVERY] fotogramas recarga los features sobre el bbox actualizado.
+     *
+     * @param gray Fotograma actual en escala de grises.
+     * @return [TrackResult.Found] con el nuevo bbox, [TrackResult.JustInitialized] en el primer
+     *   fotograma tras [init], o [TrackResult.Lost] si el rastreo falló.
+     */
     fun update(gray: Mat): TrackResult {
         if (!initialized) return TrackResult.Lost
 
@@ -170,14 +194,12 @@ class OpticalFlowTracker {
             val avgErr = if (fwdErr.isNotEmpty()) fwdErr.map { it.toDouble() }.average() else -1.0
             Log.i(TAG, "LK status: OK=$statusOk FAIL=$statusFail avgErr=${"%.2f".format(avgErr)}")
 
-            // Log primeros puntos para diagnóstico
             fwdPrev.take(3).forEachIndexed { i, p ->
                 val s = if (i < fwdStatus.size) fwdStatus[i].toInt() else -1
                 val n = if (i < fwdNext.size) fwdNext[i] else Point(-1.0, -1.0)
                 Log.i(TAG, "  pt[$i] prev=(${p.x.toInt()},${p.y.toInt()}) → next=(${n.x.toInt()},${n.y.toInt()}) status=$s")
             }
 
-            // Recopilar puntos válidos y sus desplazamientos
             val validNext = mutableListOf<Point>()
             val dxList    = mutableListOf<Double>()
             val dyList    = mutableListOf<Double>()
@@ -205,16 +227,6 @@ class OpticalFlowTracker {
                 reset(); return TrackResult.Lost
             }
 
-            // ── FIX BBOX: desplazar el bbox por la mediana de los movimientos ──
-            //
-            // Antes: newBbox = Rect(xs.min, ys.min, xs.max-xs.min, ys.max-ys.min)
-            // → el tamaño dependía de la distribución de features → se encogía.
-            //
-            // Ahora: calculamos el desplazamiento mediano de todos los features
-            // válidos y lo aplicamos al bbox actual, preservando su tamaño.
-            //
-            // Usamos mediana en lugar de media para robustez ante outliers de LK
-            // (algún feature que se "escapó" a una región de fondo similar).
             val medianDx = median(dxList)
             val medianDy = median(dyList)
 
@@ -224,14 +236,11 @@ class OpticalFlowTracker {
             val newBbox = Rect(newX, newY, currentBbox.width, currentBbox.height)
                 .clamp(gray.cols(), gray.rows())
 
-            // Actualizar currentBbox para el siguiente frame
             currentBbox = newBbox
 
-            // Actualizar puntos rastreados o recargar features
             framesSinceFeatureReinit++
             if (framesSinceFeatureReinit >= REINIT_FEATURES_EVERY) {
                 framesSinceFeatureReinit = 0
-                // Recargar features sobre el bbox actualizado (tamaño estable)
                 loadFeaturesDetailed(gray, newBbox)
             } else {
                 trackedPoints.release()
@@ -254,6 +263,12 @@ class OpticalFlowTracker {
         }
     }
 
+    /**
+     * Reinicia completamente el tracker, liberando todos los recursos nativos de OpenCV.
+     *
+     * Tras esta llamada [isActive] devuelve `false` y el tracker queda listo para
+     * una nueva llamada a [init].
+     */
     fun reset() {
         initialized = false
         justInited = false
@@ -266,10 +281,22 @@ class OpticalFlowTracker {
         prevGray = Mat()
     }
 
+    /**
+     * Indica si el tracker fue inicializado y está rastreando activamente un objeto.
+     *
+     * @return `true` si [init] fue exitoso y no se ha llamado a [reset].
+     */
     fun isActive() = initialized
 
-    // ── Mediana robusta ───────────────────────────────────────────────────────
-
+    /**
+     * Calcula la mediana de una lista de valores [Double].
+     *
+     * Se usa en lugar de la media para tolerar outliers de LK, como features que
+     * se desplazan hacia regiones de fondo con textura similar al objeto.
+     *
+     * @param values Lista de desplazamientos en una dimensión.
+     * @return Mediana de los valores, o `0.0` si la lista está vacía.
+     */
     private fun median(values: List<Double>): Double {
         if (values.isEmpty()) return 0.0
         val sorted = values.sorted()
@@ -278,10 +305,16 @@ class OpticalFlowTracker {
         else sorted[mid]
     }
 
-    // ── Carga de features ─────────────────────────────────────────────────────
-
+    /**
+     * Intenta cargar features de interés dentro de [bbox] usando tres estrategias en cascada.
+     *
+     * Registra en logcat la estrategia utilizada y el número de puntos obtenidos.
+     *
+     * @param gray Fotograma actual en escala de grises.
+     * @param bbox Región sobre la que extraer los features.
+     * @return Cadena descriptiva de la estrategia aplicada y la cantidad de puntos cargados.
+     */
     private fun loadFeaturesDetailed(gray: Mat, bbox: Rect): String {
-        // Intento 1: Shi-Tomasi interior
         val roi = Mat(gray, bbox)
         cornersRaw.release()
         var shiTomasiCount = 0
@@ -303,7 +336,6 @@ class OpticalFlowTracker {
             return "shi-tomasi($shiTomasiCount)"
         }
 
-        // Intento 2: anillo de borde expandido
         val expandX = (bbox.width * 0.25).toInt().coerceAtLeast(6)
         val expandY = (bbox.height * 0.25).toInt().coerceAtLeast(6)
         val ringBbox = Rect(
@@ -333,7 +365,6 @@ class OpticalFlowTracker {
             return "ring-shi-tomasi($ringCount)"
         }
 
-        // Intento 3: grilla en borde del bbox
         val borderPts = borderGridPoints(bbox, gray.cols(), gray.rows())
         Log.i(TAG, "  Grilla borde → ${borderPts.size} puntos")
         try { trackedPoints.release() } catch (_: Throwable) {}
@@ -341,6 +372,17 @@ class OpticalFlowTracker {
         return "border-grid(${borderPts.size})"
     }
 
+    /**
+     * Genera una grilla de puntos distribuidos uniformemente sobre el borde del [bbox].
+     *
+     * Se usa como estrategia de último recurso cuando Shi-Tomasi no encuentra features
+     * ni en el interior ni en el anillo expandido del bbox.
+     *
+     * @param bbox Región cuyo borde se va a muestrear.
+     * @param imgW Ancho del fotograma, usado para descartar puntos fuera de límites.
+     * @param imgH Alto del fotograma, usado para descartar puntos fuera de límites.
+     * @return Lista de puntos válidos sobre el perímetro del bbox.
+     */
     private fun borderGridPoints(bbox: Rect, imgW: Int, imgH: Int): List<Point> {
         val pts = mutableListOf<Point>()
         val steps = 8
@@ -361,10 +403,24 @@ class OpticalFlowTracker {
         return pts
     }
 
+    /**
+     * Verifica que un [Mat] de OpenCV es válido y utilizable.
+     *
+     * @param mat Mat a verificar.
+     * @return `true` si el Mat tiene dirección nativa válida, dimensiones mayores a cero y no está vacío.
+     */
     private fun isValid(mat: Mat): Boolean = try {
         !mat.empty() && mat.cols() > 0 && mat.rows() > 0 && mat.nativeObjAddr != 0L
     } catch (_: Throwable) { false }
 
+    /**
+     * Restringe el bounding box para que quede completamente dentro de una imagen de tamaño [w]×[h].
+     *
+     * @receiver Rect a restringir.
+     * @param w Ancho máximo de la imagen.
+     * @param h Alto máximo de la imagen.
+     * @return Nuevo [Rect] con coordenadas y dimensiones dentro de los límites de la imagen.
+     */
     private fun Rect.clamp(w: Int, h: Int): Rect {
         val x1 = x.coerceIn(0, (w - 1).coerceAtLeast(0))
         val y1 = y.coerceIn(0, (h - 1).coerceAtLeast(0))
