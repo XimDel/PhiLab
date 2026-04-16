@@ -23,6 +23,19 @@ import com.example.philab.core.calibration.CalibrationState
 import java.util.Locale
 import kotlin.math.max
 
+/**
+ * Composable que dibuja sobre el visor de cámara la información del estado de calibración
+ * y, cuando está calibrado, el contorno del marcador ArUco detectado.
+ *
+ * Superpone un panel de texto en la esquina superior izquierda con el estado actual,
+ * y dibuja las aristas y vértices del marcador escalados al tamaño del componente.
+ *
+ * @param calibrationState Estado actual de la calibración. Si es [CalibrationState.Idle],
+ *   el overlay no renderiza ningún contenido.
+ * @param viewSize Tamaño en píxeles del componente que contiene la vista de cámara,
+ *   usado para mapear las coordenadas del bitmap al espacio de pantalla.
+ * @param modifier Modificador opcional de Compose aplicado al contenedor raíz.
+ */
 @Composable
 fun MeasurementOverlay(
     calibrationState: CalibrationState,
@@ -116,6 +129,13 @@ fun MeasurementOverlay(
     }
 }
 
+/**
+ * Construye la lista de líneas de texto a mostrar en el panel de estado
+ * según el [calibrationState] actual.
+ *
+ * @param calibrationState Estado actual de la calibración.
+ * @return Lista de cadenas de texto para renderizar en el overlay.
+ */
 private fun buildLines(calibrationState: CalibrationState): List<String> {
     return when (calibrationState) {
         is CalibrationState.Idle -> emptyList()
@@ -138,5 +158,18 @@ private fun buildLines(calibrationState: CalibrationState): List<String> {
     }
 }
 
+/**
+ * Formatea un valor de escala [value] en cm/px con tres decimales.
+ *
+ * @param value Factor de escala a formatear.
+ * @return Cadena con el valor formateado usando punto como separador decimal.
+ */
 private fun formatScale(value: Float) = String.format(Locale.US, "%.3f", value)
+
+/**
+ * Formatea un tamaño de marcador [value] en centímetros con un decimal.
+ *
+ * @param value Tamaño en centímetros a formatear.
+ * @return Cadena con el valor formateado usando punto como separador decimal.
+ */
 private fun formatMarker(value: Float) = String.format(Locale.US, "%.1f", value)

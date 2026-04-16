@@ -11,6 +11,18 @@ import org.opencv.objdetect.DetectorParameters
 import org.opencv.objdetect.Objdetect
 import kotlin.math.hypot
 
+/**
+ * Detecta marcadores ArUco en un bitmap y calcula el factor de escala en cm/px.
+ *
+ * Utiliza OpenCV para identificar el marcador más grande visible en el fotograma
+ * y aplica un filtro de suavizado exponencial al factor de escala calculado,
+ * reduciendo el ruido entre fotogramas consecutivos.
+ *
+ * @property smoothingAlpha Factor de suavizado exponencial entre 0 y 1.
+ *   Valores más bajos producen una escala más estable pero con mayor latencia.
+ * @property minMarkerSizePx Tamaño mínimo aceptable del marcador en píxeles.
+ *   Los marcadores más pequeños se descartan para evitar mediciones imprecisas.
+ */
 class ArucoScaleDetector(
     private val smoothingAlpha: Float = 0.20f,
     private val minMarkerSizePx: Float = 24f
@@ -22,6 +34,18 @@ class ArucoScaleDetector(
     private val detector by lazy { ArucoDetector(dictionary, detectorParameters) }
     private val rgbaMat by lazy { Mat() }
 
+    /**
+     * Analiza un [bitmap] en busca de un marcador ArUco y devuelve el estado de calibración resultante.
+     *
+     * Convierte el bitmap a Mat, detecta los marcadores presentes, selecciona el más grande
+     * y calcula el factor de escala aplicando suavizado exponencial.
+     *
+     * @param bitmap Fotograma capturado por la cámara a analizar.
+     * @param markerSizeCm Tamaño físico real del marcador ArUco en centímetros.
+     * @return [CalibrationState.Calibrated] si se detectó y midió un marcador correctamente,
+     *   [CalibrationState.Searching] si no se encontró ningún marcador válido,
+     *   o [CalibrationState.Error] si ocurrió un fallo durante el procesamiento.
+     */
     fun detectScale(
         bitmap: Bitmap,
         markerSizeCm: Float
@@ -84,14 +108,31 @@ class ArucoScaleDetector(
         }
     }
 
+    /**
+     * Reinicia el valor suavizado del factor de escala.
+     *
+     * Debe llamarse cuando se interrumpe la calibración o se cambia de marcador,
+     * para evitar que valores anteriores influyan en la próxima sesión.
+     */
     fun reset() {
         smoothedCmPerPx = null
     }
 
+    /**
+     * Libera los recursos nativos de OpenCV asociados al Mat interno.
+     *
+     * Debe invocarse cuando el detector ya no sea necesario para evitar fugas de memoria nativa.
+     */
     fun release() {
         if (rgbaMat.nativeObjAddr != 0L) rgbaMat.release()
     }
 
+    /**
+     * Aplica un filtro de suavizado exponencial al [value] recibido.
+     *
+     * @param value Nuevo valor crudo de cm/px a incorporar.
+     * @return Valor suavizado resultante.
+     */
     private fun smooth(value: Float): Float {
         val previous = smoothedCmPerPx
         val smoothed = if (previous == null) value
@@ -100,6 +141,12 @@ class ArucoScaleDetector(
         return smoothed
     }
 
+    /**
+     * Encuentra el índice del marcador con mayor tamaño estimado en píxeles dentro de [corners].
+     *
+     * @param corners Lista de matrices de esquinas detectadas por el detector ArUco.
+     * @return Índice del marcador más grande, o `-1` si la lista está vacía.
+     */
     private fun findLargestMarkerIndex(corners: List<Mat>): Int {
         var bestIndex = -1
         var bestSize = 0f
@@ -113,6 +160,15 @@ class ArucoScaleDetector(
         return bestIndex
     }
 
+    /**
+     * Estima el tamaño lateral promedio de un marcador a partir de su matriz de esquinas [cornerMat].
+     *
+     * Calcula las cuatro distancias entre esquinas consecutivas y devuelve su promedio,
+     * ofreciendo una estimación robusta ante leves perspectivas o distorsiones.
+     *
+     * @param cornerMat Matriz OpenCV con las coordenadas de las cuatro esquinas del marcador.
+     * @return Tamaño estimado en píxeles, o `0f` si no se pudieron extraer las esquinas.
+     */
     private fun estimateMarkerSidePx(cornerMat: Mat): Float {
         val points = extractCornerPoints(cornerMat)
         if (points.size < 4) return 0f
@@ -123,6 +179,14 @@ class ArucoScaleDetector(
         return ((d01 + d12 + d23 + d30) / 4.0).toFloat()
     }
 
+    /**
+     * Extrae una lista de [Point] desde una [cornerMat] en formato OpenCV.
+     *
+     * Compatible con matrices de forma `1×N` (una fila, N columnas) y `N×1` (N filas, una columna).
+     *
+     * @param cornerMat Matriz OpenCV con las coordenadas de las esquinas del marcador.
+     * @return Lista de hasta cuatro puntos extraídos, o lista vacía si el formato no es compatible.
+     */
     private fun extractCornerPoints(cornerMat: Mat): List<Point> {
         val result = mutableListOf<Point>()
         val rows = cornerMat.rows()
@@ -144,12 +208,25 @@ class ArucoScaleDetector(
         return result
     }
 
+    /**
+     * Convierte las esquinas de una [cornerMat] en una lista de [Offset] de Compose.
+     *
+     * @param cornerMat Matriz OpenCV con las coordenadas de las esquinas del marcador.
+     * @return Lista de [Offset] con las coordenadas en el espacio del bitmap.
+     */
     private fun extractCornerOffsets(cornerMat: Mat): List<Offset> {
         return extractCornerPoints(cornerMat).map { p ->
             Offset(p.x.toFloat(), p.y.toFloat())
         }
     }
 
+    /**
+     * Calcula la distancia euclidiana entre los puntos [a] y [b].
+     *
+     * @param a Primer punto.
+     * @param b Segundo punto.
+     * @return Distancia en píxeles entre los dos puntos.
+     */
     private fun distance(a: Point, b: Point): Double {
         return hypot(b.x - a.x, b.y - a.y)
     }
