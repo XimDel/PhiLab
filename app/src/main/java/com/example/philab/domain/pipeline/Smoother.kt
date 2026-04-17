@@ -1,42 +1,29 @@
 package com.example.philab.domain.pipeline
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ETAPA 3: SMOOTHING
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
- * Suaviza la señal x(t) usando una Media Móvil Ponderada Triangularmente
- * (LWMA — Linearly Weighted Moving Average).
+ * Etapa 3 del pipeline cinemático. Suaviza la señal de posición `x(t)` e `y(t)`
+ * usando una Media Móvil Ponderada Triangularmente (LWMA — Linearly Weighted Moving Average).
  *
- * POR QUÉ LWMA Y NO OTROS MÉTODOS:
+ * Los pesos decrecen linealmente desde el centro de la ventana hacia los extremos,
+ * lo que preserva mejor los picos y reduce el retraso de fase respecto a una media
+ * móvil simple (SMA). Con múltiples pasadas, el perfil de pesos converge hacia una
+ * forma gaussiana por el teorema central del límite.
  *
- * • Media móvil simple (SMA): da igual peso a todos los puntos → introduce
- *   retraso de fase proporcional a la ventana. Malo para cinemática.
- *
- * • Gaussian / Savitzky-Golay: excelente pero complejo de implementar sin
- *   librerías. SG puede calcular también las derivadas directamente.
- *
- * • LWMA triangular: peso lineal decreciente desde el centro hacia los bordes.
- *   Preserva mejor los picos (menor retraso que SMA) y es O(n·w) — eficiente.
- *   Para señales de laboratorio de <1000 puntos es más que suficiente.
- *
- * • EMA (Exponential Moving Average): solo mira hacia atrás → introduce
- *   retraso sistemático. No apropiado para post-procesamiento offline.
- *
- * La LWMA con múltiples pasadas converge hacia un perfil gaussiano
- * (central limit theorem), lo que da un resultado similar a Gaussian
- * pero con implementación Kotlin pura.
- *
- * PRESERVACIÓN DE BORDES:
- * En los extremos (primeros/últimos w/2 puntos) se usa una ventana reducida
- * simétricamente para no introducir bias hacia el interior del dataset.
+ * En los extremos de la señal se usa una ventana reducida simétricamente para
+ * no introducir sesgo hacia el interior del dataset. Los timestamps no se modifican.
  */
 object Smoother {
 
     /**
-     * Aplica smoothing a la señal x(t) de la lista de CleanPoints.
-     * y(t) se suaviza de forma independiente.
-     * Los timestamps NO se modifican.
+     * Aplica suavizado LWMA a las coordenadas `x` e `y` de cada [CleanPoint].
+     *
+     * Se ejecutan [PipelineConfig.smoothingPasses] pasadas sucesivas sobre cada
+     * dimensión con una ventana de [PipelineConfig.smoothingWindowSize] puntos.
+     * Los timestamps y el flag `isValid` de cada punto se conservan intactos.
+     *
+     * @param points Lista de puntos limpios a suavizar.
+     * @param config Parámetros del pipeline con el tamaño de ventana y número de pasadas.
+     * @return Lista de [CleanPoint] con las coordenadas suavizadas.
      */
     fun smooth(
         points: List<CleanPoint>,
@@ -47,7 +34,6 @@ object Smoother {
         var xValues = points.map { it.x }
         var yValues = points.map { it.y }
 
-        // Múltiples pasadas para mayor suavidad
         repeat(config.smoothingPasses) {
             xValues = lwmaPass(xValues, config.smoothingWindowSize)
             yValues = lwmaPass(yValues, config.smoothingWindowSize)
@@ -58,8 +44,16 @@ object Smoother {
         }
     }
 
-    // ── Una pasada de LWMA triangular ─────────────────────────────────────────
-
+    /**
+     * Ejecuta una pasada de LWMA triangular sobre una lista de valores flotantes.
+     *
+     * En cada posición se calcula la media ponderada de los puntos dentro de la
+     * ventana `[i - half, i + half]`, usando pesos triangulares normalizados.
+     *
+     * @param values Lista de valores a suavizar.
+     * @param windowSize Tamaño total de la ventana (debe ser impar para simetría).
+     * @return Lista con los valores suavizados, de la misma longitud que [values].
+     */
     private fun lwmaPass(values: List<Float>, windowSize: Int): List<Float> {
         val half = windowSize / 2
         val weights = triangularWeights(half)
@@ -72,7 +66,6 @@ object Smoother {
             var totalWeight = 0f
 
             for (j in start..end) {
-                // Índice dentro del kernel [-half, +half]
                 val kernelIndex = j - i + half
                 val w = if (kernelIndex in weights.indices) weights[kernelIndex] else 1f
                 weightedSum += values[j] * w
@@ -84,8 +77,13 @@ object Smoother {
     }
 
     /**
-     * Genera pesos triangulares simétricos: [1, 2, ..., half+1, ..., 2, 1]
-     * Ejemplo con half=2: [1, 2, 3, 2, 1] → se normaliza al dividir por totalWeight.
+     * Genera un array de pesos triangulares simétricos de tamaño `2 × half + 1`.
+     *
+     * Ejemplo con `half = 2`: `[1, 2, 3, 2, 1]`. La normalización se realiza
+     * implícitamente al dividir por `totalWeight` en [lwmaPass].
+     *
+     * @param half Mitad del tamaño de la ventana, sin contar el punto central.
+     * @return Array de pesos triangulares.
      */
     private fun triangularWeights(half: Int): FloatArray {
         val size = 2 * half + 1
@@ -95,21 +93,28 @@ object Smoother {
     }
 
     /**
-     * Variante adaptativa: ajusta el tamaño de la ventana según la densidad
-     * temporal local. Útil si el muestreo es muy irregular.
+     * Variante adaptativa que ajusta el tamaño de la ventana según el intervalo
+     * de tiempo promedio entre puntos, útil cuando el muestreo es irregular.
+     *
+     * Calcula el `dt` promedio de la serie y lo usa para convertir la ventana
+     * temporal deseada [targetWindowSec] en un número de puntos equivalente.
+     *
+     * @param points Lista de puntos a suavizar.
+     * @param targetWindowSec Duración deseada de la ventana de suavizado en segundos.
+     * @param passes Número de pasadas LWMA a aplicar.
+     * @return Lista de [CleanPoint] con las coordenadas suavizadas.
      */
     fun smoothAdaptive(
         points: List<CleanPoint>,
-        targetWindowSec: Float = 0.1f,       // ventana temporal deseada (100 ms)
+        targetWindowSec: Float = 0.1f,
         passes: Int = 2
     ): List<CleanPoint> {
         if (points.size < 3) return points
 
-        // Calcular dt promedio para estimar la ventana en puntos
         val avgDt = if (points.size > 1) {
             (points.last().tSec - points.first().tSec) / (points.size - 1)
         } else {
-            0.033f // 30 fps como fallback
+            0.033f
         }
 
         val windowSize = maxOf(3, ((targetWindowSec / avgDt).toInt() / 2) * 2 + 1)

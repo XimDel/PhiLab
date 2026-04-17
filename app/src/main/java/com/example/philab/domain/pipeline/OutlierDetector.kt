@@ -2,33 +2,36 @@ package com.example.philab.domain.pipeline
 
 import kotlin.math.abs
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ETAPA 1: OUTLIER DETECTION
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
- * Detecta outliers usando dos capas, pero con criterio AND (ambas deben rechazar).
+ * Etapa 1 del pipeline cinemático. Detecta outliers en la señal de posición
+ * usando dos capas independientes con criterio AND: un punto solo se marca como
+ * inválido si ambas capas lo rechazan simultáneamente.
  *
- * CAMBIO CRÍTICO vs versión anterior:
- *   Antes: OR  → basta con que UNA capa lo rechace → demasiado agresivo
- *   Ahora: AND → ambas capas deben rechazarlo → más conservador
+ * El criterio AND reemplaza al OR de versiones anteriores, que era demasiado
+ * agresivo con datos de tracking óptico y eliminaba hasta un 25 % de los puntos,
+ * forzando interpolaciones lineales que generaban velocidades espurias.
  *
- * Para datos de tracking de cámara (ruidosos por naturaleza), el criterio OR
- * eliminaba ~25% de los puntos, creando gaps que el GapHandler rellenaba con
- * interpolaciones lineales. Esas interpolaciones generaban velocidades espurias
- * en sus bordes. El criterio AND es mucho más apropiado.
+ * Capa 1 — Velocidad instantánea con MAD:
+ * Marca puntos cuya velocidad entre fotogramas consecutivos supera un umbral
+ * basado en la mediana absoluta de desviación del conjunto de velocidades.
  *
- * CAPA 1 — Velocidad instantánea con MAD:
- *   Solo marca puntos cuya velocidad es anómala respecto al resto.
- *   Con el umbral aumentado a 5.0 (era 4.0), tolera mejor la variabilidad
- *   normal del tracking óptico.
- *
- * CAPA 2 — Ventana local de posición con MAD:
- *   Solo marca puntos muy alejados de su vecindad local.
- *   Con madMultiplier = 5.0 (era 3.5), es menos agresivo.
+ * Capa 2 — Posición local con MAD:
+ * Marca puntos muy alejados de la mediana de posición dentro de una ventana
+ * deslizante centrada en cada punto.
  */
 object OutlierDetector {
 
+    /**
+     * Analiza [points] y devuelve la misma cantidad de [CleanPoint] con el flag
+     * `isValid` indicando si cada punto superó ambas capas de detección.
+     *
+     * Si la cantidad de puntos es menor que [PipelineConfig.minPointsForStats],
+     * todos los puntos se marcan como válidos sin análisis estadístico.
+     *
+     * @param points Lista de puntos crudos a analizar.
+     * @param config Parámetros del pipeline que controlan los umbrales MAD y el tamaño de ventana.
+     * @return Lista de [CleanPoint] con el mismo orden que [points] y el flag `isValid` asignado.
+     */
     fun detect(
         points: List<RawPoint>,
         config: PipelineConfig
@@ -40,17 +43,22 @@ object OutlierDetector {
         val velocityOutliers = detectByInstantaneousVelocity(points, config)
         val positionOutliers = detectByLocalPosition(points, config)
 
-        // CAMBIO CRÍTICO: AND en lugar de OR
-        // Un punto solo es outlier si AMBAS capas lo rechazan.
         val combined = velocityOutliers.zip(positionOutliers) { v, p ->
-            v.copy(isValid = v.isValid || p.isValid)   // OR en validez = AND en rechazo
+            v.copy(isValid = v.isValid || p.isValid)
         }
 
         return combined
     }
 
-    // ── Capa 1: MAD sobre velocidades instantáneas ────────────────────────────
-
+    /**
+     * Capa 1: marca como outlier los puntos cuya velocidad instantánea supera
+     * `mediana + [PipelineConfig.velocityMadMultiplier] × MAD` del conjunto completo de velocidades.
+     * Marca tanto el punto origen como el destino del salto detectado.
+     *
+     * @param points Puntos crudos a analizar.
+     * @param config Parámetros del pipeline.
+     * @return Lista de [CleanPoint] con `isValid = false` en los puntos con velocidad anómala.
+     */
     private fun detectByInstantaneousVelocity(
         points: List<RawPoint>,
         config: PipelineConfig
@@ -67,8 +75,6 @@ object OutlierDetector {
 
         val medianSpeed = median(speeds)
         val mad         = mad(speeds, medianSpeed)
-
-        // Umbral más generoso: velocityMadMultiplier ahora debería ser 5.0
         val threshold   = medianSpeed + config.velocityMadMultiplier * mad
 
         val outlierSet  = mutableSetOf<Int>()
@@ -84,8 +90,18 @@ object OutlierDetector {
         }
     }
 
-    // ── Capa 2: MAD local de posición ────────────────────────────────────────
-
+    /**
+     * Capa 2: marca como outlier los puntos cuya posición se aleja de la mediana
+     * local más de `[PipelineConfig.madMultiplier] × MAD` dentro de una ventana deslizante.
+     *
+     * Cuando el MAD local es prácticamente cero (señal constante), se usa un MAD
+     * mínimo estimado a partir del rango global de posiciones para evitar
+     * falsos positivos.
+     *
+     * @param points Puntos crudos a analizar.
+     * @param config Parámetros del pipeline.
+     * @return Lista de [CleanPoint] con `isValid = false` en los puntos con posición anómala.
+     */
     private fun detectByLocalPosition(
         points: List<RawPoint>,
         config: PipelineConfig
@@ -108,15 +124,18 @@ object OutlierDetector {
             val effectiveMad = if (localMad < 1e-6f) estimateMinimumMad(points) else localMad
             val deviation    = abs(points[i].x - localMedian)
 
-            // madMultiplier ahora debería ser 5.0 en PipelineConfig
             result.add(points[i].toClean(isValid = deviation <= config.madMultiplier * effectiveMad))
         }
 
         return result
     }
 
-    // ── Utilidades estadísticas ───────────────────────────────────────────────
-
+    /**
+     * Calcula la mediana de una lista de [Float].
+     *
+     * @param values Lista de valores a ordenar.
+     * @return Mediana, o `0f` si la lista está vacía.
+     */
     fun median(values: List<Float>): Float {
         if (values.isEmpty()) return 0f
         val sorted = values.sorted()
@@ -125,11 +144,27 @@ object OutlierDetector {
         else sorted[mid]
     }
 
+    /**
+     * Calcula la Desviación Absoluta de la Mediana (MAD) escalada con el factor
+     * de consistencia `1.4826` para equivalencia con la desviación estándar bajo
+     * distribución normal.
+     *
+     * @param values Lista de valores.
+     * @param med Mediana precalculada de [values].
+     * @return MAD escalado.
+     */
     fun mad(values: List<Float>, med: Float): Float {
         val deviations = values.map { abs(it - med) }
         return 1.4826f * median(deviations)
     }
 
+    /**
+     * Estima un MAD mínimo cuando la señal es casi constante, usando el 2 % del
+     * rango global de posiciones o `0.5` como cota inferior absoluta.
+     *
+     * @param points Conjunto completo de puntos crudos.
+     * @return MAD mínimo estimado.
+     */
     private fun estimateMinimumMad(points: List<RawPoint>): Float {
         val xs    = points.map { it.x }
         val range = (xs.maxOrNull() ?: 0f) - (xs.minOrNull() ?: 0f)

@@ -3,28 +3,32 @@ package com.example.philab.domain.pipeline
 import com.example.philab.domain.experiment.DataPoint
 import com.example.philab.domain.experiment.ExperimentResults
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ETAPA 0: CONVERSIÓN Y VALIDACIÓN INICIAL
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
- * Convierte los DataPoint del dominio existente en RawPoints para el pipeline.
+ * Etapa 0 del pipeline cinemático. Convierte [DataPoint] del dominio en [RawPoint]
+ * normalizados y validados para las etapas siguientes.
  *
  * Responsabilidades:
- *  - Ordenar por tiempo (los timestamps del SessionRecorder son monótonos, pero
- *    si hay concurrencia podrían llegar desordenados).
- *  - Eliminar duplicados de timestamp exacto (mismo tMs → mismo frame).
- *  - Rechazar puntos con valores NaN / Infinite (defensa ante bugs de tracking).
- *  - Normalizar el tiempo a t=0.0 al primer punto.
+ * - Ordenar los puntos por timestamp ascendente.
+ * - Eliminar duplicados con el mismo `tMs` (mismo fotograma procesado dos veces).
+ * - Descartar puntos con valores `NaN` o infinitos producidos por bugs del tracker.
+ * - Normalizar el tiempo para que el primer punto sea `t = 0.0 s`.
  */
 object RawPointConverter {
 
+    /**
+     * Convierte una lista de [DataPoint] en [RawPoint] listos para el pipeline.
+     *
+     * @param points Lista de puntos del dominio, potencialmente desordenados o con duplicados.
+     * @return Lista de [RawPoint] ordenada, sin duplicados, sin valores no finitos
+     *   y con tiempo normalizado a cero en el primer punto. Devuelve lista vacía
+     *   si [points] está vacía.
+     */
     fun fromDataPoints(points: List<DataPoint>): List<RawPoint> {
         if (points.isEmpty()) return emptyList()
 
         return points
             .sortedBy { it.tMs }
-            .distinctBy { it.tMs }                       // eliminar duplicados exactos
+            .distinctBy { it.tMs }
             .filter { it.xCm.isFinite() && it.yCm.isFinite() }
             .let { sorted ->
                 val t0 = sorted.first().tMs
@@ -38,6 +42,13 @@ object RawPointConverter {
             }
     }
 
+    /**
+     * Convierte los puntos contenidos en un [ExperimentResults] en [RawPoint]
+     * aplicando las mismas transformaciones que [fromDataPoints].
+     *
+     * @param results Resultado de una sesión de experimento.
+     * @return Lista de [RawPoint] procesados.
+     */
     fun fromExperimentResults(results: ExperimentResults): List<RawPoint> =
         fromDataPoints(results.points)
 }

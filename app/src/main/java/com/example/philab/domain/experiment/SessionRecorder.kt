@@ -8,6 +8,7 @@ import kotlin.math.roundToInt
  *
  * Acumula puntos de medición, calcula métricas cinemáticas al finalizar
  * y construye un objeto [ExperimentResults] con los datos procesados.
+ * El ciclo de vida típico es: [start] → [addPoint] (N veces) → [stop].
  */
 class SessionRecorder {
 
@@ -20,15 +21,18 @@ class SessionRecorder {
     private var currentUnit = "px"
 
     /**
-     * Inicia una nueva sesión.
+     * Inicia una nueva sesión de grabación, descartando cualquier dato previo.
      *
-     * @param startFrameTimestampNs  Timestamp en nanosegundos del sensor de cámara
-     *                               (ImageProxy.imageInfo.timestamp).
-     *                               Se usa SOLO para calcular tMs relativo de cada punto.
-     *                               Si es 0 se usa System.nanoTime() como fallback.
+     * El parámetro [startFrameTimestampNs] debe ser el timestamp del sensor de cámara
+     * (`ImageProxy.imageInfo.timestamp`), que es monotónico desde el arranque del dispositivo
+     * y se usa exclusivamente para calcular el tiempo relativo de cada punto.
+     * La fecha real de la sesión se registra por separado con `System.currentTimeMillis()`.
      *
-     * IMPORTANTE: startFrameTimestampNs NO es epoch — es tiempo desde el arranque
-     * del dispositivo. Por eso recordedAt usa System.currentTimeMillis() por separado.
+     * @param label Etiqueta del objeto que se va a rastrear durante la sesión.
+     * @param cmPerPx Factor de escala inicial en centímetros por píxel.
+     * @param unit Unidad de medida a usar en los resultados (`"cm"` o `"px"`).
+     * @param startFrameTimestampNs Timestamp en nanosegundos del primer fotograma,
+     *   tomado del sensor de cámara. Si es `0` se usa `System.nanoTime()` como alternativa.
      */
     fun start(
         label: String,
@@ -39,13 +43,21 @@ class SessionRecorder {
         points.clear()
         startTimeNs  = if (startFrameTimestampNs > 0L) startFrameTimestampNs
         else System.nanoTime()
-        startEpochMs = System.currentTimeMillis()   // epoch real para recordedAt
+        startEpochMs = System.currentTimeMillis()
         currentLabel = label
         currentCmPerPx = cmPerPx
         currentUnit = unit
         isRecording = true
     }
 
+    /**
+     * Actualiza el factor de escala y la unidad de medida durante una sesión activa.
+     *
+     * No tiene efecto si no hay una sesión en curso.
+     *
+     * @param cmPerPx Nuevo factor de escala en centímetros por píxel.
+     * @param unit Nueva unidad de medida (`"cm"` o `"px"`).
+     */
     fun updateMetadata(cmPerPx: Float, unit: String) {
         if (!isRecording) return
         currentCmPerPx = cmPerPx
@@ -53,26 +65,35 @@ class SessionRecorder {
     }
 
     /**
-     * Registra un punto de posición.
+     * Registra un punto de posición en la sesión activa.
      *
-     * @param xCm                  Posición horizontal en cm (o px sin calibración).
-     * @param yCm                  Posición vertical en cm (o px sin calibración).
-     * @param frameTimestampNs     Timestamp del frame en nanosegundos del sensor
-     *                             (ImageProxy.imageInfo.timestamp).
-     *                             Si es 0 se usa System.nanoTime() como fallback.
+     * El tiempo relativo del punto se calcula a partir del timestamp del sensor de cámara
+     * para evitar el jitter de hasta 40 ms que introduciría `System.currentTimeMillis()`.
+     * No tiene efecto si no hay una sesión en curso.
      *
-     * FIX timestamp: usar el timestamp del sensor del frame en lugar de
-     * System.currentTimeMillis() elimina el jitter causado por la latencia
-     * variable del pipeline de análisis (~5–40 ms por frame).
-     * El timestamp del sensor es monotónico con jitter < 1 ms.
+     * @param xCm Posición horizontal en centímetros, o en píxeles si no hay calibración activa.
+     * @param yCm Posición vertical en centímetros, o en píxeles si no hay calibración activa.
+     * @param frameTimestampNs Timestamp en nanosegundos del fotograma actual, tomado del sensor
+     *   de cámara.
      */
     fun addPoint(xCm: Float, yCm: Float, frameTimestampNs: Long = 0L) {
         if (!isRecording) return
         val tsNs = if (frameTimestampNs > 0L) frameTimestampNs else System.nanoTime()
-        val tMs = (tsNs - startTimeNs) / 1_000_000L   // ns → ms
+        val tMs = (tsNs - startTimeNs) / 1_000_000L
         points.add(DataPoint(tMs = tMs.coerceAtLeast(0L), xCm = xCm, yCm = yCm))
     }
 
+    /**
+     * Detiene la sesión activa, calcula las métricas cinemáticas y devuelve los resultados.
+     *
+     * Las métricas calculadas incluyen: distancia total recorrida, desplazamiento neto,
+     * velocidad media, aceleración media estimada a partir del primer y último intervalo,
+     * duración total y frecuencia de muestreo.
+     *
+     * @return [ExperimentResults] con todos los puntos y métricas calculadas,
+     *   o `null` si la sesión no estaba activa, tiene menos de dos puntos
+     *   o su duración es cero o negativa.
+     */
     fun stop(): ExperimentResults? {
         if (!isRecording) return null
         isRecording = false
@@ -105,7 +126,7 @@ class SessionRecorder {
             points           = points.toList(),
             unit             = currentUnit,
             selectedLabel    = currentLabel,
-            recordedAt       = startEpochMs,   // epoch ms real — correcto para UI e historial
+            recordedAt       = startEpochMs,
             durationMs       = durationMs,
             sampleCount      = points.size,
             sampleRateHz     = (sampleRateHz * 10).roundToInt() / 10f,
@@ -121,6 +142,9 @@ class SessionRecorder {
         )
     }
 
+    /** Indica si hay una sesión de grabación actualmente en curso. */
     val isActive: Boolean get() = isRecording
+
+    /** Número de puntos registrados en la sesión actual. */
     val pointCount: Int get() = points.size
 }

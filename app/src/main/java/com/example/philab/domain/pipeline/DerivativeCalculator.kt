@@ -2,42 +2,30 @@ package com.example.philab.domain.pipeline
 
 import kotlin.math.abs
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ETAPA 4: DERIVADAS (VELOCIDAD Y ACELERACIÓN)
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
- * Calcula velocidad (dx/dt) y aceleración (dv/dt) usando diferencias centrales.
+ * Etapa 4 del pipeline cinemático. Calcula velocidad (`dx/dt`) y aceleración (`dv/dt`)
+ * usando diferencias centrales de segundo orden sobre los [CleanPoint] válidos.
  *
- * POR QUÉ DIFERENCIAS CENTRALES Y NO HACIA ADELANTE/ATRÁS:
+ * Las diferencias centrales tienen error `O(dt²)` y son simétricas en fase,
+ * lo que significa que el valor calculado corresponde exactamente al instante `t_i`
+ * sin sesgo temporal. En los extremos de la señal se usan diferencias unilaterales
+ * de primer orden para no extrapolar fuera del rango de datos.
  *
- * • Diferencia hacia adelante:  v_i = (x_{i+1} - x_i) / dt
- *   → Error O(dt). El resultado tiene sesgo temporal (el valor está medio dt
- *     adelantado). Peor en presencia de ruido.
- *
- * • Diferencia central:  v_i = (x_{i+1} - x_{i-1}) / (2·dt)
- *   → Error O(dt²). Simétrico → sin sesgo de fase. Más robusto ante ruido.
- *   → La velocidad calculada corresponde exactamente al instante t_i.
- *
- * ESTABILIDAD NUMÉRICA:
- *   - dt se clampea a minDt para evitar divisiones por cero o inestabilidad
- *     cuando hay timestamps casi idénticos (jitter del sistema).
- *   - Los extremos (i=0, i=n-1) usan diferencias unilaterales de primer orden
- *     en lugar de inventar puntos fuera del rango.
- *   - La aceleración hereda la suavidad de la velocidad ya calculada.
- *
- * SEGUNDA DERIVADA (ACELERACIÓN):
- *   a_i = (v_{i+1} - v_{i-1}) / (2·dt_avg)
- *   Se aplica el mismo esquema central. Si la velocidad ya está suavizada
- *   por el Smoother, la aceleración resultante será razonablemente estable.
- *
- * NOTA: Para datos muy ruidosos después de un experimento corto, la aceleración
- *   puede seguir siendo ruidosa incluso tras el suavizado. En ese caso, el
- *   Smoother puede aplicarse también sobre los MotionPoints resultantes
- *   (ver KinematicPipeline.kt).
+ * El intervalo de tiempo `dt` se clampea a [PipelineConfig.minDtMs] para evitar
+ * divisiones por cero cuando hay timestamps casi idénticos por jitter del sistema.
  */
 object DerivativeCalculator {
 
+    /**
+     * Calcula velocidad y aceleración para cada punto de [points] y devuelve
+     * la lista equivalente de [MotionPoint].
+     *
+     * Si [points] tiene un solo elemento, se devuelve con velocidad y aceleración cero.
+     *
+     * @param points Lista de puntos limpios y suavizados, ordenados por tiempo ascendente.
+     * @param config Parámetros del pipeline, en particular [PipelineConfig.minDtMs].
+     * @return Lista de [MotionPoint] con la misma longitud que [points].
+     */
     fun calculate(
         points: List<CleanPoint>,
         config: PipelineConfig
@@ -47,10 +35,7 @@ object DerivativeCalculator {
             return listOf(points[0].toMotion(velocity = 0f, acceleration = 0f))
         }
 
-        // Paso 1: calcular velocidades con diferencias centrales
         val velocities = computeVelocities(points, config.minDtMs)
-
-        // Paso 2: calcular aceleraciones sobre las velocidades
         val accelerations = computeAccelerations(velocities, points, config.minDtMs)
 
         return points.mapIndexed { i, cp ->
@@ -61,8 +46,14 @@ object DerivativeCalculator {
         }
     }
 
-    // ── Velocidades: diferencias centrales ───────────────────────────────────
-
+    /**
+     * Calcula las velocidades instantáneas usando diferencias centrales en el interior
+     * y diferencias unilaterales en los extremos.
+     *
+     * @param points Lista de puntos limpios ordenados por tiempo.
+     * @param minDt Intervalo de tiempo mínimo en segundos para evitar divisiones por cero.
+     * @return Array de velocidades de la misma longitud que [points].
+     */
     private fun computeVelocities(
         points: List<CleanPoint>,
         minDt: Float
@@ -72,17 +63,14 @@ object DerivativeCalculator {
 
         for (i in points.indices) {
             v[i] = when (i) {
-                // Extremo izquierdo: diferencia hacia adelante
                 0 -> {
                     val dt = (points[1].tSec - points[0].tSec).coerceAtLeast(minDt)
                     (points[1].x - points[0].x) / dt
                 }
-                // Extremo derecho: diferencia hacia atrás
                 n - 1 -> {
                     val dt = (points[n - 1].tSec - points[n - 2].tSec).coerceAtLeast(minDt)
                     (points[n - 1].x - points[n - 2].x) / dt
                 }
-                // Interior: diferencia central de orden 2
                 else -> {
                     val dt = (points[i + 1].tSec - points[i - 1].tSec).coerceAtLeast(minDt * 2)
                     (points[i + 1].x - points[i - 1].x) / dt
@@ -93,8 +81,15 @@ object DerivativeCalculator {
         return v
     }
 
-    // ── Aceleraciones: diferencias centrales sobre velocidades ───────────────
-
+    /**
+     * Calcula las aceleraciones aplicando el mismo esquema de diferencias centrales
+     * sobre el array de velocidades ya calculado.
+     *
+     * @param velocities Array de velocidades calculado por [computeVelocities].
+     * @param points Lista de puntos original, usada para obtener los timestamps.
+     * @param minDt Intervalo de tiempo mínimo en segundos.
+     * @return Array de aceleraciones de la misma longitud que [velocities].
+     */
     private fun computeAccelerations(
         velocities: FloatArray,
         points: List<CleanPoint>,
@@ -123,8 +118,15 @@ object DerivativeCalculator {
         return a
     }
 
-    // ── Estadísticos para la UI ───────────────────────────────────────────────
-
+    /**
+     * Estadísticas cinemáticas agregadas calculadas sobre una lista de [MotionPoint].
+     *
+     * @property maxSpeed Velocidad máxima en valor absoluto.
+     * @property avgSpeed Velocidad media en valor absoluto.
+     * @property maxAcceleration Aceleración máxima en valor absoluto.
+     * @property avgAcceleration Aceleración media en valor absoluto.
+     * @property rmsVelocity Velocidad cuadrática media (RMS).
+     */
     data class KinematicStats(
         val maxSpeed: Float,
         val avgSpeed: Float,
@@ -133,6 +135,12 @@ object DerivativeCalculator {
         val rmsVelocity: Float
     )
 
+    /**
+     * Calcula las estadísticas cinemáticas agregadas de una lista de [MotionPoint].
+     *
+     * @param motionPoints Lista de puntos de movimiento procesados.
+     * @return [KinematicStats] con los valores calculados, o todos ceros si la lista está vacía.
+     */
     fun computeStats(motionPoints: List<MotionPoint>): KinematicStats {
         if (motionPoints.isEmpty()) return KinematicStats(0f, 0f, 0f, 0f, 0f)
 

@@ -1,41 +1,32 @@
 package com.example.philab.domain.pipeline
 
 import kotlin.math.abs
-import kotlin.math.sqrt
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ETAPA 5: DOWNSAMPLING (SOLO VISUAL)
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Reduce el número de puntos para graficar sin perder la forma de la señal.
+ * Etapa 5 del pipeline cinemático. Reduce el número de puntos para graficar
+ * preservando la forma visual de la señal mediante el algoritmo
+ * Largest Triangle Three Buckets (LTTB) de Steinarsson (2013).
  *
- * ALGORITMO: Largest Triangle Three Buckets (LTTB) — Steinarsson (2013).
+ * A diferencia del paso fijo, LTTB divide los datos en N buckets y selecciona
+ * en cada uno el punto que maximiza el área del triángulo formado con el último
+ * punto seleccionado y el centroide del siguiente bucket. Esto garantiza que
+ * los picos y valles importantes siempre queden representados en la salida.
  *
- * POR QUÉ LTTB Y NO STEP FIJO:
- *
- *   Step fijo (cada N puntos): puede saltar picos y valles importantes. Si el
- *   paso cae entre dos máximos, ambos desaparecen de la gráfica.
- *
- *   LTTB: divide los datos en N buckets (uno por punto de salida deseado).
- *   En cada bucket elige el punto que forma el triángulo de mayor área con
- *   el punto ya seleccionado y el centroide del siguiente bucket.
- *   Esto maximiza la información visual preservada — los picos extremos
- *   siempre se seleccionan porque forman triángulos grandes.
- *
- *   Resultado: la gráfica con N puntos es visualmente indistinguible de la
- *   gráfica completa. Ideal para señales de posición / velocidad.
- *
- * COMPLEJIDAD: O(n) — lineal en el número de puntos originales.
+ * Complejidad: `O(n)` lineal en el número de puntos originales.
  */
 object Downsampler {
 
     /**
-     * Devuelve hasta maxPoints pares (t, valor) representativos de la señal.
-     * Si points.size ≤ maxPoints, devuelve todos sin modificar.
+     * Reduce [points] a un máximo de [maxPoints] pares `(t, valor)` representativos.
+     *
+     * Si `points.size ≤ maxPoints` o `maxPoints < 3`, devuelve la lista original sin modificar.
+     *
+     * @param points Lista de pares `(tiempo, valor)` de la señal original.
+     * @param maxPoints Número máximo de puntos en la salida.
+     * @return Lista reducida manteniendo la forma visual de la señal original.
      */
     fun downsample(
-        points: List<Pair<Float, Float>>,   // (t, value)
+        points: List<Pair<Float, Float>>,
         maxPoints: Int
     ): List<Pair<Float, Float>> {
         val n = points.size
@@ -44,28 +35,34 @@ object Downsampler {
         return lttb(points, maxPoints)
     }
 
-    // ── Implementación de LTTB ────────────────────────────────────────────────
-
+    /**
+     * Implementación del algoritmo LTTB.
+     *
+     * Siempre incluye el primer y el último punto. Para cada uno de los
+     * `threshold - 2` buckets intermedios selecciona el punto que forma el
+     * triángulo de mayor área con el punto ya elegido y el centroide del
+     * bucket siguiente.
+     *
+     * @param data Lista completa de pares `(t, valor)`.
+     * @param threshold Número de puntos deseado en la salida, incluyendo extremos.
+     * @return Lista de [threshold] puntos seleccionados.
+     */
     private fun lttb(
         data: List<Pair<Float, Float>>,
         threshold: Int
     ): List<Pair<Float, Float>> {
         val result = mutableListOf<Pair<Float, Float>>()
 
-        // Siempre incluir el primer y último punto
         result.add(data.first())
 
-        // Tamaño de cada bucket (excluido primero y último)
         val bucketSize = (data.size - 2).toFloat() / (threshold - 2)
 
-        var a = 0  // índice del último punto seleccionado
+        var a = 0
 
         for (i in 0 until threshold - 2) {
-            // Rango del bucket actual
             val bucketStart = ((i + 1) * bucketSize + 1).toInt()
             val bucketEnd   = minOf(((i + 2) * bucketSize + 1).toInt(), data.size - 1)
 
-            // Centroide del siguiente bucket (para calcular el área del triángulo)
             val nextBucketStart = bucketEnd
             val nextBucketEnd   = minOf(((i + 2) * bucketSize + 1).toInt(), data.size - 1)
             val avgX = data.subList(nextBucketStart, nextBucketEnd + 1)
@@ -73,10 +70,8 @@ object Downsampler {
             val avgY = data.subList(nextBucketStart, nextBucketEnd + 1)
                 .map { it.second }.average().toFloat()
 
-            // Punto A (ya seleccionado)
             val pointA = data[a]
 
-            // Elegir el punto del bucket actual que maximiza el área del triángulo A-P-C
             var maxArea = -1f
             var maxIndex = bucketStart
 
@@ -98,8 +93,13 @@ object Downsampler {
     }
 
     /**
-     * Área del triángulo formado por tres puntos (x,y).
-     * Fórmula: |( (x_a)(y_b - y_c) + (x_b)(y_c - y_a) + (x_c)(y_a - y_b) ) / 2|
+     * Calcula el área del triángulo formado por tres puntos `(x, y)` usando la
+     * fórmula de la cruz: `|(xa(yb − yc) + xb(yc − ya) + xc(ya − yb)) / 2|`.
+     *
+     * @param a Primer vértice.
+     * @param b Segundo vértice.
+     * @param c Tercer vértice.
+     * @return Área del triángulo en unidades cuadradas del espacio `(t, valor)`.
      */
     private fun triangleArea(
         a: Pair<Float, Float>,
@@ -113,8 +113,14 @@ object Downsampler {
         )
     }
 
-    // ── Adaptador para MotionPoint ────────────────────────────────────────────
-
+    /**
+     * Aplica [downsample] de forma independiente sobre las series de posición,
+     * velocidad y aceleración de una lista de [MotionPoint].
+     *
+     * @param points Lista de puntos de movimiento procesados.
+     * @param maxPoints Número máximo de puntos por serie en la salida.
+     * @return [DownsampledMotion] con las tres series reducidas.
+     */
     fun downsampleMotion(
         points: List<MotionPoint>,
         maxPoints: Int
@@ -130,6 +136,13 @@ object Downsampler {
         )
     }
 
+    /**
+     * Resultado del downsampling aplicado a las tres series cinemáticas de un experimento.
+     *
+     * @property position Serie de pares `(tiempo, posición)` reducida.
+     * @property velocity Serie de pares `(tiempo, velocidad)` reducida.
+     * @property acceleration Serie de pares `(tiempo, aceleración)` reducida.
+     */
     data class DownsampledMotion(
         val position: List<Pair<Float, Float>>,
         val velocity: List<Pair<Float, Float>>,

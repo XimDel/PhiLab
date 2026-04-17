@@ -3,100 +3,58 @@ package com.example.philab.domain.pipeline
 import com.example.philab.domain.experiment.ExperimentResults
 import kotlin.math.abs
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ORQUESTADOR: KinematicPipeline
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
- * Secuencia de etapas:
+ * Orquestador del pipeline cinemático completo. Transforma un [ExperimentResults]
+ * en un [PipelineResult] listo para ser consumido por la UI.
  *
- *   ExperimentResults
- *     │
- *     ▼  [0] RawPointConverter
- *   List<RawPoint>
- *     │
- *     ▼  [1] OutlierDetector  (solo marca, NO elimina)
- *   List<CleanPoint>
- *     │
- *     ▼  [2] Smoother sobre posición COMPLETA (incluyendo inválidos pesados)
- *   List<CleanPoint>  (x e y suavizados)
- *     │
- *     ▼  [3] Filtrar solo puntos válidos (sin gaps, sin interpolación)
- *   List<CleanPoint>
- *     │
- *     ▼  [4] DerivativeCalculator  (diferencias centrales)
- *   List<MotionPoint>
- *     │
- *     ▼  [5] Clip de velocidad/aceleración extremos (percentil 98)
- *   List<MotionPoint>
- *     │
- *     ▼  [6] Suavizado de velocidad y aceleración
- *   List<MotionPoint>
- *     │
- *     ▼  [7] Downsampler (LTTB)
- *   ChartData
+ * Las etapas se ejecutan en orden secuencial:
  *
- * CAMBIOS RESPECTO A LA VERSIÓN ANTERIOR:
- *
- *  1. El GapHandler fue ELIMINADO del pipeline principal.
- *     Los gaps interpolados generaban bordes con velocidades espurias enormes
- *     (salto de posición lineal entre dos puntos alejados → v = Δx/Δt enorme).
- *     La solución correcta es simplemente no interpolar: filtrar los outliers
- *     y calcular derivadas solo sobre los puntos válidos consecutivos.
- *
- *  2. El OutlierDetector ahora usa criterio AND (ambas capas deben rechazar).
- *     Antes usaba OR → demasiado agresivo con datos de tracking de cámara.
- *
- *  3. El suavizado se aplica ANTES de filtrar outliers usando peso reducido
- *     para los puntos inválidos. Esto suaviza la transición en los bordes
- *     sin inventar puntos nuevos.
- *
- *  4. Se agrega clip de percentil para velocidad y aceleración: los valores
- *     extremos (>percentil 98) se clamean al máximo razonable, evitando que
- *     un solo spike arruine la escala de la gráfica.
- *
- *  5. El smoother de velocidad/aceleración usa más pasadas (3 vs 2).
+ * 1. **[RawPointConverter]** — convierte y normaliza los puntos del dominio.
+ * 2. **[OutlierDetector]** — marca outliers sin eliminarlos todavía.
+ * 3. **[Smoother]** — suaviza posición sobre todos los puntos, incluyendo los marcados como inválidos,
+ *    para reducir el impacto de los saltos en los bordes.
+ * 4. Filtrado — descarta los puntos inválidos sin interpolar gaps.
+ * 5. **[DerivativeCalculator]** — calcula velocidad y aceleración con diferencias centrales.
+ * 6. Clip de percentil 98 — limita valores extremos de velocidad y aceleración.
+ * 7. Suavizado de velocidad y aceleración con más pasadas que la posición.
+ * 8. **[Downsampler]** — reduce los puntos para graficar usando LTTB.
  */
 object KinematicPipeline {
 
+    /**
+     * Ejecuta el pipeline completo sobre los resultados de un experimento.
+     *
+     * Si la señal tiene menos de 3 puntos tras la conversión o tras el filtrado
+     * de outliers, devuelve un [PipelineResult] vacío con derivadas en cero.
+     *
+     * @param results Resultado de la sesión de experimento a procesar.
+     * @param config Parámetros del pipeline. Si se omite se usan los valores por defecto.
+     * @return [PipelineResult] con los puntos crudos, limpios, de movimiento y datos de gráfica.
+     */
     fun process(
         results: ExperimentResults,
         config: PipelineConfig = PipelineConfig()
     ): PipelineResult {
 
-        // ── [0] Conversión ───────────────────────────────────────────────────
         val raw = RawPointConverter.fromExperimentResults(results)
 
         if (raw.size < 3) return emptyResult(raw, results.unit)
 
-        // ── [1] Detección de outliers (marca, no elimina) ────────────────────
         val afterOutlierDetection = OutlierDetector.detect(raw, config)
         val outliersRemoved = afterOutlierDetection.count { !it.isValid }
 
-        // ── [2] Suavizado sobre todos los puntos (incluyendo inválidos) ──────
-        // Suavizamos primero para que los puntos inválidos reciban influencia
-        // de sus vecinos válidos, reduciendo el impacto de los saltos.
         val smoothedAll = Smoother.smooth(afterOutlierDetection, config)
 
-        // ── [3] Filtrar: solo puntos válidos para las derivadas ──────────────
-        // SIN interpolación de gaps. Simplemente descartamos los inválidos.
-        // Las derivadas en los bordes de cada gap usarán diferencias unilaterales
-        // (DerivativeCalculator ya maneja esto correctamente en los extremos).
         val validOnly = smoothedAll.filter { it.isValid }
 
         if (validOnly.size < 3) return emptyResult(raw, results.unit)
 
-        // ── [4] Derivadas ─────────────────────────────────────────────────────
         val motionPoints = DerivativeCalculator.calculate(validOnly, config)
 
-        // ── [5] Clip de valores extremos (percentil 98) ───────────────────────
-        // Evita que un spike aislado arruine la escala de la gráfica.
         val clipped = clipExtremes(motionPoints)
 
-        // ── [6] Suavizado de velocidad y aceleración ──────────────────────────
         val motionSmoothed = smoothMotion(clipped, config)
 
-        // ── [7] Downsampling y construcción de ChartData ──────────────────────
         val downsampled = Downsampler.downsampleMotion(motionSmoothed, config.maxChartPoints)
 
         val chart = ChartData(
@@ -107,7 +65,7 @@ object KinematicPipeline {
             totalPoints      = raw.size,
             cleanedPoints    = validOnly.size,
             outliersRemoved  = outliersRemoved,
-            gapsInterpolated = 0   // ya no interpolamos
+            gapsInterpolated = 0
         )
 
         return PipelineResult(
@@ -118,8 +76,16 @@ object KinematicPipeline {
         )
     }
 
-    // ── Clip de percentil 98 sobre velocidad y aceleración ────────────────────
-
+    /**
+     * Clampea los valores de velocidad y aceleración al percentil 98 de sus
+     * respectivos valores absolutos, evitando que un spike aislado distorsione
+     * la escala de las gráficas.
+     *
+     * No tiene efecto si [points] tiene menos de 5 elementos.
+     *
+     * @param points Lista de [MotionPoint] a procesar.
+     * @return Nueva lista con velocidad y aceleración limitadas al rango `[-p98, p98]`.
+     */
     private fun clipExtremes(points: List<MotionPoint>): List<MotionPoint> {
         if (points.size < 5) return points
 
@@ -138,8 +104,15 @@ object KinematicPipeline {
         }
     }
 
-    // ── Suavizado de velocidad y aceleración ──────────────────────────────────
-
+    /**
+     * Aplica suavizado adicional sobre las series de velocidad y aceleración
+     * con más pasadas que las usadas para la posición, dado que son señales
+     * de mayor orden y más susceptibles al ruido.
+     *
+     * @param points Lista de [MotionPoint] con velocidad y aceleración calculadas.
+     * @param config Parámetros del pipeline con el número de pasadas base y el tamaño de ventana.
+     * @return Lista de [MotionPoint] con velocidad y aceleración suavizadas.
+     */
     private fun smoothMotion(
         points: List<MotionPoint>,
         config: PipelineConfig
@@ -149,9 +122,7 @@ object KinematicPipeline {
         var velocities    = points.map { it.velocity }
         var accelerations = points.map { it.acceleration }
 
-        // Más pasadas sobre velocidad (señal de primer orden, aún ruidosa)
         val velPasses   = config.smoothingPasses + 1
-        // Más pasadas sobre aceleración (segunda derivada, muy ruidosa)
         val accelPasses = config.smoothingPasses + 2
         val accelWindow = config.smoothingWindowSize + 4
 
@@ -167,6 +138,13 @@ object KinematicPipeline {
         }
     }
 
+    /**
+     * Aplica una media móvil simple de ventana [windowSize] sobre una lista de flotantes.
+     *
+     * @param values Lista de valores a suavizar.
+     * @param windowSize Número de puntos de la ventana deslizante.
+     * @return Lista suavizada de la misma longitud que [values].
+     */
     private fun smoothFloatList(values: List<Float>, windowSize: Int): List<Float> {
         val half = windowSize / 2
         return values.mapIndexed { i, _ ->
@@ -176,8 +154,14 @@ object KinematicPipeline {
         }
     }
 
-    // ── Resultado vacío ───────────────────────────────────────────────────────
-
+    /**
+     * Construye un [PipelineResult] vacío con derivadas en cero para cuando
+     * la señal tiene muy pocos puntos para ser procesada.
+     *
+     * @param raw Lista de puntos crudos originales.
+     * @param unit Unidad de medida del experimento.
+     * @return [PipelineResult] con velocidad y aceleración en cero en todos los puntos.
+     */
     private fun emptyResult(raw: List<RawPoint>, unit: String): PipelineResult {
         val clean  = raw.map { CleanPoint(it.tSec, it.x, it.y, isValid = true) }
         val motion = raw.map { MotionPoint(it.tSec, it.x, it.y, 0f, 0f) }
