@@ -8,6 +8,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.philab.R
 
+/**
+ * Familia tipográfica principal de la aplicación basada en la fuente Poppins.
+ *
+ * Incluye: Light, Regular, SemiBold y Bold
+ */
 val Poppins = FontFamily(
     Font(R.font.poppins_light,    FontWeight.Light),
     Font(R.font.poppins_regular,  FontWeight.Normal),
@@ -15,6 +20,12 @@ val Poppins = FontFamily(
     Font(R.font.poppins_bold,     FontWeight.Bold)
 )
 
+/**
+ * Configuración global de tipografías de la aplicación.
+ *
+ * Define los estilos de texto utilizados en Material3, incluyendo títulos,
+ * encabezados, cuerpo y etiquetas, todos basados en la fuente Poppins.
+ */
 val AppTypography = Typography(
     displayLarge   = TextStyle(fontFamily = Poppins, fontWeight = FontWeight.Bold,     fontSize = 57.sp),
     displayMedium  = TextStyle(fontFamily = Poppins, fontWeight = FontWeight.Bold,     fontSize = 45.sp),
