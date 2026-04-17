@@ -27,6 +27,14 @@ import com.example.philab.ui.theme.AppDrawables
 import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
 
+/**
+ * Representa un paso dentro de la guía para dibujar un marcador ArUco.
+ *
+ * @param number Número del paso.
+ * @param title Título descriptivo del paso.
+ * @param description Explicación detallada de la acción a realizar.
+ * @param imageRes Recurso de imagen ilustrativa del paso.
+ */
 private data class ArucoStep(
     val number: Int,
     val title: String,
@@ -34,6 +42,9 @@ private data class ArucoStep(
     val imageRes: Int
 )
 
+/**
+ * Lista de pasos que describen el proceso para dibujar manualmente un marcador ArUco.
+ */
 private val steps = listOf(
     ArucoStep(
         number = 1,
@@ -61,8 +72,18 @@ private val steps = listOf(
     )
 )
 
+/**
+ * Lista de materiales necesarios para dibujar un marcador ArUco manualmente.
+ */
 private val materials = listOf("Regla", "Papel", "Lápiz", "Marcador negro")
 
+/**
+ * Pantalla que muestra una guía paso a paso para dibujar un marcador ArUco manualmente.
+ *
+ * Incluye materiales necesarios, recomendaciones iniciales y una lista de pasos ilustrados.
+ *
+ * @param onBack Acción que se ejecuta al regresar a la pantalla anterior.
+ */
 @Composable
 fun DrawArucoScreen(
     onBack: () -> Unit,
@@ -77,7 +98,6 @@ fun DrawArucoScreen(
                 contentScale = ContentScale.Crop
             )
 
-            // Back button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -114,7 +134,6 @@ fun DrawArucoScreen(
 
                 Spacer(modifier = Modifier.height(5.dp))
 
-                // ── SCROLLEABLE
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -123,7 +142,6 @@ fun DrawArucoScreen(
                     contentPadding = PaddingValues(bottom = 40.dp)
                 ) {
 
-                    // Nota
                     item {
                         Surface(
                             color = Color(0xFFFFF9C4),
@@ -142,7 +160,6 @@ fun DrawArucoScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    // Materiales
                     item {
                         SectionCard {
                             Text(
@@ -176,7 +193,6 @@ fun DrawArucoScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    // Antes de empezar
                     item {
                         SectionCard {
                             Text(
@@ -198,7 +214,6 @@ fun DrawArucoScreen(
                         Spacer(modifier = Modifier.height(22.dp))
                     }
 
-                    // Título sección pasos
                     item {
                         Text(
                             text = "Pasos:",
@@ -212,13 +227,11 @@ fun DrawArucoScreen(
                         )
                     }
 
-                    // Pasos
                     items(steps) { step ->
                         StepCard(step = step)
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    // Mensaje final
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -250,6 +263,11 @@ fun DrawArucoScreen(
     }
 }
 
+/**
+ * Contenedor reutilizable para secciones informativas dentro de la pantalla.
+ *
+ * @param content Contenido composable que se mostrará dentro de la tarjeta.
+ */
 @Composable
 private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
@@ -264,6 +282,13 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
+/**
+ * Componente que representa visualmente un paso individual de la guía.
+ *
+ * Incluye número, título, descripción e imagen ilustrativa.
+ *
+ * @param step Información del paso a mostrar.
+ */
 @Composable
 private fun StepCard(step: ArucoStep) {
     Surface(
@@ -324,6 +349,9 @@ private fun StepCard(step: ArucoStep) {
     }
 }
 
+/**
+ * Vista previa de la pantalla de guía para dibujar ArUco.
+ */
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 private fun DrawArucoScreenPreview() {

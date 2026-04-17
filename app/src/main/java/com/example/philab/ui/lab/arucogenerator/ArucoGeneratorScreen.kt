@@ -67,6 +67,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Pantalla principal para la generación de marcadores ArUco.
+ *
+ * Permite al usuario seleccionar el ID del marcador y su tamaño físico,
+ * visualizar una vista previa en tiempo real y exportarlo como PDF.
+ *
+ * @param onBack Acción a ejecutar al regresar a la pantalla anterior.
+ * @param onNavigateToDrawGuide Navegación hacia la guía de dibujo manual del marcador.
+ */
 @Composable
 fun ArucoGeneratorScreen(
     onBack: () -> Unit,
@@ -85,6 +94,9 @@ fun ArucoGeneratorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    /**
+     * Genera la vista previa del marcador cada vez que cambia el ID.
+     */
     LaunchedEffect(markerId) {
         val bmp = withContext(Dispatchers.Default) {
             ArucoGenerator.generateBitmap(markerId, pixelSize = 600)
@@ -102,7 +114,6 @@ fun ArucoGeneratorScreen(
                 contentScale = ContentScale.Crop
             )
 
-            // Back button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -139,7 +150,6 @@ fun ArucoGeneratorScreen(
 
                 Spacer(modifier = Modifier.height(5.dp))
 
-                // ── Botón guía de dibujo
                 TextButton(
                     onClick = onNavigateToDrawGuide,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -163,7 +173,6 @@ fun ArucoGeneratorScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // ArUco live preview
                 Box(
                     modifier = Modifier
                         .size(210.dp)
@@ -205,6 +214,10 @@ fun ArucoGeneratorScreen(
                             .padding(horizontal = 20.dp, vertical = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+
+                        /**
+                         * Selector de ID del marcador.
+                         */
                         MarkerDropdownRow(
                             label = "Marker ID:",
                             selectedValue = markerId.toString(),
@@ -213,6 +226,9 @@ fun ArucoGeneratorScreen(
                             infoText = "Identificador único del marcador dentro del diccionario (4x4_50)."
                         )
 
+                        /**
+                         * Selector del tamaño físico del marcador.
+                         */
                         MarkerDropdownRow(
                             label = "Marker size:",
                             selectedValue = markerSize.toString(),
@@ -225,6 +241,9 @@ fun ArucoGeneratorScreen(
 
                 Spacer(modifier = Modifier.height(15.dp))
 
+                /**
+                 * Botón para iniciar la exportación del PDF.
+                 */
                 Button(
                     onClick = { showSaveDialog = true },
                     enabled = !isSaving && markerBitmap != null,
@@ -267,6 +286,9 @@ fun ArucoGeneratorScreen(
         }
     }
 
+    /**
+     * Diálogo de confirmación para guardar el PDF.
+     */
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
@@ -323,6 +345,16 @@ fun ArucoGeneratorScreen(
     }
 }
 
+/**
+ * Componente reutilizable que muestra una fila con etiqueta, selector desplegable
+ * y un ícono de ayuda asociado.
+ *
+ * @param label Texto descriptivo del campo.
+ * @param selectedValue Valor actualmente seleccionado.
+ * @param options Lista de opciones disponibles.
+ * @param onValueSelected Callback al seleccionar un nuevo valor.
+ * @param infoText Texto informativo mostrado en el tooltip.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MarkerDropdownRow(
@@ -400,6 +432,11 @@ private fun MarkerDropdownRow(
     }
 }
 
+/**
+ * Muestra un ícono de ayuda que despliega un diálogo con información adicional.
+ *
+ * @param text Contenido informativo a mostrar en el diálogo.
+ */
 @Composable
 fun InfoTooltip(text: String) {
     var showDialog by remember { mutableStateOf(false) }
@@ -437,6 +474,9 @@ fun InfoTooltip(text: String) {
     }
 }
 
+/**
+ * Vista previa de la pantalla del generador de ArUco para desarrollo.
+ */
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 private fun ArucoGeneratorScreenPreview() {

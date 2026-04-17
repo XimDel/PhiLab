@@ -15,8 +15,25 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
 
+/**
+ * Utilidad encargada de generar marcadores ArUco tanto en formato de imagen
+ * como en documentos PDF listos para impresión.
+ *
+ * Permite construir visualmente los marcadores a partir de su representación
+ * binaria y exportarlos con dimensiones físicas específicas.
+ */
 object ArucoGenerator {
 
+    /**
+     * Genera un [Bitmap] que representa un marcador ArUco.
+     *
+     * El marcador incluye el borde negro externo y la matriz interna de 4×4,
+     * escalados al tamaño de píxel indicado.
+     *
+     * @param markerId Identificador del marcador dentro del diccionario.
+     * @param pixelSize Tamaño total del bitmap en píxeles (ancho y alto).
+     * @return Imagen del marcador generada como [Bitmap].
+     */
     fun generateBitmap(markerId: Int, pixelSize: Int): Bitmap {
         val bits = ArucoDictionary.getBits(markerId)
         val gridSize = 6
@@ -49,6 +66,21 @@ object ArucoGenerator {
         return bitmap
     }
 
+    /**
+     * Genera y exporta un archivo PDF con un marcador ArUco listo para impresión.
+     *
+     * El documento incluye:
+     * - El marcador centrado con márgenes definidos.
+     * - Una etiqueta con el ID y el tamaño en centímetros.
+     * - Instrucciones para impresión correcta a escala.
+     *
+     * El archivo se guarda en la carpeta de Descargas del dispositivo.
+     *
+     * @param context Contexto de la aplicación requerido para acceder al almacenamiento.
+     * @param markerId Identificador del marcador a generar.
+     * @param sizeInCm Tamaño físico deseado del marcador en centímetros.
+     * @param onComplete Callback que indica si la operación fue exitosa y el nombre del archivo generado.
+     */
     fun exportPdf(
         context: Context,
         markerId: Int,
@@ -72,11 +104,9 @@ object ArucoGenerator {
             val canvas      = page.canvas
             val paint       = Paint()
 
-            // White background
             paint.color = Color.WHITE
             canvas.drawRect(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat(), paint)
 
-            // Marker
             val dst = android.graphics.RectF(
                 marginPts.toFloat(),
                 marginPts.toFloat(),
@@ -85,7 +115,6 @@ object ArucoGenerator {
             )
             canvas.drawBitmap(bitmap, null, dst, null)
 
-            // Label: ID and size
             paint.isAntiAlias = true
             paint.textSize = (sizeInCm * 0.06f * pointsPerCm).coerceIn(6f, 14f)
             paint.color = Color.DKGRAY
@@ -95,7 +124,6 @@ object ArucoGenerator {
                 marginPts.toFloat(), labelY, paint
             )
 
-            // Print warning
             val lineSpacing      = paint.textSize * 1.6f
             val warningTitleSize = paint.textSize * 0.85f
             val warningBodySize  = warningTitleSize * 0.92f
