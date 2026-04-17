@@ -3,11 +3,17 @@ package com.example.philab.domain.experiment
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/**
+ * Clase encargada de registrar una sesión de experimento en tiempo real.
+ *
+ * Acumula puntos de medición, calcula métricas cinemáticas al finalizar
+ * y construye un objeto [ExperimentResults] con los datos procesados.
+ */
 class SessionRecorder {
 
     private val points = mutableListOf<DataPoint>()
-    private var startTimeNs  = 0L   // nanosegundos del sensor — solo para tMs relativo de puntos
-    private var startEpochMs = 0L   // epoch ms real — para recordedAt de la sesión en Room
+    private var startTimeNs  = 0L
+    private var startEpochMs = 0L
     private var isRecording = false
     private var currentLabel = "Object"
     private var currentCmPerPx = 1f
