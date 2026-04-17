@@ -36,6 +36,15 @@ import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
 import com.example.philab.ui.theme.AppDrawables
 
+/**
+ * Pantalla principal del módulo teórico.
+ *
+ * Muestra una lista de artículos de física en formato de cuadrícula,
+ * permitiendo al usuario navegar entre ellos o regresar a la pantalla anterior.
+ *
+ * @param onBack Acción ejecutada al presionar el botón de retroceso.
+ * @param onOpenArticle Callback que se ejecuta al seleccionar un artículo.
+ */
 @Composable
 fun TheoryModuleScreen(
     onBack: () -> Unit,
@@ -72,7 +81,6 @@ fun TheoryModuleScreen(
             }
         }
 
-        // Title
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -105,6 +113,12 @@ fun TheoryModuleScreen(
     }
 }
 
+/**
+ * Contenedor que muestra la lista de artículos en una cuadrícula escalonada.
+ *
+ * @param articles Lista de artículos a mostrar.
+ * @param onOpenArticle Acción ejecutada al seleccionar un artículo.
+ */
 @Composable
 private fun ArticlesBox(
     articles: List<Article>,
@@ -140,6 +154,14 @@ private fun ArticlesBox(
     }
 }
 
+/**
+ * Tarjeta de vista previa de un artículo.
+ *
+ * Muestra la imagen de portada, el título y un fragmento del contenido.
+ *
+ * @param article Artículo a representar.
+ * @param onClick Acción ejecutada al presionar la tarjeta.
+ */
 @Composable
 private fun ArticlePreviewCard(
     article: Article,
@@ -168,7 +190,6 @@ private fun ArticlePreviewCard(
             Column(
                 modifier = Modifier.padding(10.dp)
             ) {
-                // Title del articulo
                 Text(
                     text = article.title,
                     fontFamily = Poppins,
@@ -180,7 +201,6 @@ private fun ArticlePreviewCard(
 
                 Spacer(modifier = Modifier.height(3.dp))
 
-                // Preview contenido
                 Text(
                     text = articlePreviewText(article.content, 47),
                     fontFamily = Poppins,
@@ -193,6 +213,15 @@ private fun ArticlePreviewCard(
     }
 }
 
+/**
+ * Muestra la imagen de portada de un artículo.
+ *
+ * Intenta resolver dinámicamente el recurso a partir del nombre,
+ * utilizando una imagen por defecto en caso de no encontrarlo.
+ *
+ * @param modifier Modificador de Compose.
+ * @param imageName Nombre del recurso drawable.
+ */
 @Composable
 private fun ArticleCoverImage(
     modifier: Modifier,
@@ -214,6 +243,16 @@ private fun ArticleCoverImage(
     )
 }
 
+/**
+ * Genera un texto resumido a partir del contenido de un artículo.
+ *
+ * Elimina saltos de línea y espacios innecesarios, y recorta el texto
+ * a una longitud máxima definida.
+ *
+ * @param content Texto completo del artículo.
+ * @param maxChars Número máximo de caracteres permitidos.
+ * @return Texto resumido listo para visualización.
+ */
 private fun articlePreviewText(content: String, maxChars: Int): String {
     val raw = content
         .replace("\n", " ")
@@ -223,6 +262,9 @@ private fun articlePreviewText(content: String, maxChars: Int): String {
     return if (raw.length <= maxChars) raw else raw.take(maxChars).trimEnd() + "…"
 }
 
+/**
+ * Vista previa de la pantalla del módulo teórico para herramientas de diseño.
+ */
 @Preview(showBackground = true)
 @Composable
 private fun TheoryModuleScreenPreview() {

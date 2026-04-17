@@ -30,6 +30,15 @@ import com.example.philab.domain.model.Article
 import com.example.philab.ui.theme.Poppins
 import com.example.philab.ui.theme.AppDrawables
 
+/**
+ * Pantalla de visualización de un artículo teórico.
+ *
+ * Carga los artículos desde el repositorio, busca el artículo correspondiente
+ * al identificador recibido y muestra su contenido completo junto con su imagen.
+ *
+ * @param articleId Identificador único del artículo a mostrar.
+ * @param onBack Acción ejecutada al presionar el botón de retroceso.
+ */
 @Composable
 fun ArticleScreen(
     articleId: String,
@@ -37,7 +46,6 @@ fun ArticleScreen(
 ) {
     val context = LocalContext.current
 
-    // JSON
     val articles: List<Article> = remember {
         ArticleRepository.loadArticles(context)
     }
@@ -55,10 +63,8 @@ fun ArticleScreen(
             contentScale = ContentScale.Crop
         )
 
-        // Contenido
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -76,7 +82,6 @@ fun ArticleScreen(
                 Spacer(modifier = Modifier.weight(1f))
             }
 
-            // Si no existe artículo
             if (article == null) {
                 Spacer(modifier = Modifier.height(52.dp))
                 Text(
@@ -91,7 +96,6 @@ fun ArticleScreen(
                 return@Column
             }
 
-            // Título
             Spacer(modifier = Modifier.height(70.dp))
             Text(
                 text = article.title,
@@ -108,7 +112,6 @@ fun ArticleScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Scroll
             val scrollState = rememberScrollState()
 
             Column(
@@ -118,7 +121,6 @@ fun ArticleScreen(
                     .verticalScroll(scrollState)
             ) {
 
-                // Imagen
                 val imageRes = remember(article.image) {
                     context.resources.getIdentifier(article.image, "drawable", context.packageName)
                 }
@@ -148,7 +150,6 @@ fun ArticleScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // Cuerpo
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -176,7 +177,9 @@ fun ArticleScreen(
     }
 }
 
-// Solo para el preview
+/**
+ * Vista previa de la pantalla de artículo para herramientas de diseño.
+ */
 @Preview(showBackground = true)
 @Composable
 private fun ArticleScreenPreview() {
