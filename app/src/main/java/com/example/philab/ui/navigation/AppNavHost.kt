@@ -29,6 +29,18 @@ import com.example.philab.ui.lab.menu.LabModuleScreen
 import com.example.philab.ui.theory.article.ArticleScreen
 import com.example.philab.ui.theory.module.TheoryModuleScreen
 
+/**
+ * Componente principal de navegación de la aplicación.
+ *
+ * Define el grafo de navegación utilizando Jetpack Compose Navigation,
+ * incluyendo todas las pantallas, rutas y argumentos necesarios.
+ *
+ * Se encarga de:
+ * - Inicializar el controlador de navegación.
+ * - Declarar las rutas disponibles.
+ * - Gestionar la navegación entre pantallas.
+ * - Integrar ViewModels y repositorios cuando es necesario.
+ */
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
