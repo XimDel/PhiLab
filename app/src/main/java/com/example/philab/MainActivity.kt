@@ -11,7 +11,7 @@ import org.opencv.android.OpenCVLoader
  * Punto de entrada de la aplicación.
  *
  * Inicializa OpenCV de forma sincrónica con [OpenCVLoader.initLocal] antes de
- * montar la UI, garantizando que las funciones nativas de visión estén disponibles
+ * montar la UI, garantiza que las funciones nativas de visión estén disponibles
  * desde el primer frame.
  */
 class MainActivity : ComponentActivity() {
