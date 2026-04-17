@@ -3,8 +3,19 @@ package com.example.philab.data.local.database
 import com.example.philab.data.local.entity.PointEntity
 import com.example.philab.data.local.entity.SessionEntity
 
+/**
+ * Utilidad para generar datos de ejemplo en la base de datos.
+ *
+ * Proporciona métodos para crear una sesión de demostración junto con
+ * sus puntos asociados, usados principalmente para pruebas o inicialización.
+ */
 object DatabaseSeeder {
 
+    /**
+     * Crea una sesión de demostración con valores predefinidos.
+     *
+     * @return Instancia de [SessionEntity] con datos simulados.
+     */
     fun createDemoSession(): SessionEntity = SessionEntity(
         idSession = 0,
         experimentName = "Experimento Demo",
@@ -25,6 +36,14 @@ object DatabaseSeeder {
         maxT = 3.043f
     )
 
+    /**
+     * Genera una lista de puntos simulados asociados a una sesión.
+     *
+     * Los datos representan un movimiento uniformemente acelerado en una dimensión.
+     *
+     * @param sessionId Identificador de la sesión a la que pertenecen los puntos.
+     * @return Lista de [PointEntity] generados.
+     */
     fun createDemoPoints(sessionId: Long): List<PointEntity> {
         val count = 71
         val dt = 1f / 23f

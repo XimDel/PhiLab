@@ -12,6 +12,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+/**
+ * Base de datos principal de la aplicación PhiLab utilizando Room.
+ *
+ * Define las entidades persistentes y provee acceso al DAO correspondiente.
+ */
 @Database(
     entities = [SessionEntity::class, PointEntity::class],
     version = 1,
@@ -19,11 +24,27 @@ import kotlinx.coroutines.launch
 )
 abstract class PhiLabDatabase : RoomDatabase() {
 
+    /**
+     * Proporciona acceso a las operaciones de base de datos relacionadas con sesiones.
+     *
+     * @return Instancia de [SessionDao].
+     */
     abstract fun sessionDao(): SessionDao
 
     companion object {
-        @Volatile private var INSTANCE: PhiLabDatabase? = null
 
+        @Volatile
+        private var INSTANCE: PhiLabDatabase? = null
+
+        /**
+         * Obtiene la instancia única de la base de datos.
+         *
+         * Implementa el patrón Singleton para asegurar una sola instancia
+         * durante el ciclo de vida de la aplicación.
+         *
+         * @param context Contexto de la aplicación.
+         * @return Instancia de [PhiLabDatabase].
+         */
         fun getInstance(context: Context): PhiLabDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -37,9 +58,22 @@ abstract class PhiLabDatabase : RoomDatabase() {
             }
     }
 
+    /**
+     * Callback ejecutado durante la creación inicial de la base de datos.
+     *
+     * Permite poblar la base de datos con datos de ejemplo.
+     */
     private class SeedCallback : Callback() {
-        // onCreate solo se llama la PRIMERA. onOpen para testear
+
+        /**
+         * Se ejecuta cuando la base de datos es creada por primera vez.
+         *
+         * Inserta una sesión de demostración junto con sus puntos asociados.
+         *
+         * @param db Base de datos SQLite subyacente.
+         */
         override fun onCreate(db: SupportSQLiteDatabase) {
+            // onCreate solo se llama la PRIMERA. onOpen para testear
             super.onCreate(db)
             INSTANCE?.let { database ->
                 CoroutineScope(Dispatchers.IO).launch {
