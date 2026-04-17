@@ -13,18 +13,28 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Exporta ExperimentResults a CSV.
+ * Utilidad para exportar resultados de experimentos a formato CSV.
  *
- * Toggles que controlan qué secciones se incluyen:
- *  - includeMetadata  → bloque de metadatos de sesión al inicio
- *  - includeResumen   → bloque de resultados cinemáticos
- *  - includeTabla     → filas de datos t, x, y
- *
- * El archivo se guarda en Downloads/ con MediaStore (API 29+)
- * o directamente en el directorio Downloads (API < 29).
+ * Permite generar el contenido del archivo y guardarlo en el dispositivo,
+ * incluyendo diferentes secciones configurables como metadatos, resumen
+ * cinemático y tabla de datos.
  */
 object CsvExporter {
 
+    /**
+     * Opciones de configuración para controlar qué secciones del CSV se incluyen.
+     *
+     * @param includeMetadata Indica si se incluye el bloque de metadatos.
+     * @param includeFecha Indica si se incluye la fecha de la sesión.
+     * @param includeDuracion Indica si se incluye la duración del experimento.
+     * @param includeMuestras Indica si se incluye el número de muestras.
+     * @param includeFrecuencia Indica si se incluye la frecuencia de muestreo.
+     * @param includeEscala Indica si se incluye la escala de conversión.
+     * @param includeUnidad Indica si se incluye la unidad de medida.
+     * @param includeObjeto Indica si se incluye el objeto analizado.
+     * @param includeResumen Indica si se incluye el resumen cinemático.
+     * @param includeTabla Indica si se incluye la tabla de datos.
+     */
     data class CsvOptions(
         val includeMetadata: Boolean = true,
         val includeFecha: Boolean    = true,
@@ -38,13 +48,18 @@ object CsvExporter {
         val includeTabla: Boolean    = true,
     )
 
-    /** Genera el contenido CSV como String. */
+    /**
+     * Genera el contenido del archivo CSV a partir de los resultados.
+     *
+     * @param results Resultados del experimento.
+     * @param options Configuración de secciones a incluir.
+     * @return Cadena de texto en formato CSV.
+     */
     fun buildCsv(results: ExperimentResults, options: CsvOptions): String {
         val sb = StringBuilder()
         val unit = results.unit
         val dateFormatter = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
 
-        // ── Metadata ──────────────────────────────────────────────────────────
         if (options.includeMetadata) {
             sb.appendLine("# METADATA DE LA SESIÓN")
             if (options.includeObjeto)
@@ -64,7 +79,6 @@ object CsvExporter {
             sb.appendLine()
         }
 
-        // ── Resumen cinemático ────────────────────────────────────────────────
         if (options.includeResumen) {
             sb.appendLine("# RESULTADOS CINEMÁTICOS")
             sb.appendLine("Tipo de movimiento,${MotionClassifier.classify(results)}")
@@ -75,7 +89,6 @@ object CsvExporter {
             sb.appendLine()
         }
 
-        // ── Tabla de datos ────────────────────────────────────────────────────
         if (options.includeTabla) {
             sb.appendLine("# DATOS CAPTURADOS")
             sb.appendLine("t (s),x ($unit),y ($unit)")
@@ -92,8 +105,13 @@ object CsvExporter {
     }
 
     /**
-     * Guarda el CSV en la carpeta Downloads del dispositivo.
-     * Devuelve true si tuvo éxito.
+     * Guarda el archivo CSV en la carpeta de descargas del dispositivo.
+     *
+     * @param context Contexto de la aplicación.
+     * @param results Resultados del experimento.
+     * @param options Configuración de exportación.
+     * @param fileName Nombre del archivo a generar.
+     * @return true si la operación fue exitosa, false en caso contrario.
      */
     fun saveToDowloads(
         context: Context,
@@ -113,6 +131,9 @@ object CsvExporter {
         }
     }
 
+    /**
+     * Abre un flujo de salida para escribir el archivo CSV según la versión de Android.
+     */
     private fun openOutputStream(context: Context, fileName: String): OutputStream? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
@@ -124,7 +145,6 @@ object CsvExporter {
             val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                 ?: return null
             val stream = resolver.openOutputStream(uri) ?: return null
-            // Marcar como listo
             values.clear()
             values.put(MediaStore.Downloads.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
@@ -137,6 +157,12 @@ object CsvExporter {
         }
     }
 
+    /**
+     * Genera un nombre de archivo público basado en el contenido de la sesión.
+     *
+     * @param results Resultados del experimento.
+     * @return Nombre del archivo CSV.
+     */
     internal fun buildPublicFileName(results: ExperimentResults): String {
         val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
             .format(Date(results.recordedAt))
@@ -147,6 +173,12 @@ object CsvExporter {
         return "PhiLab_${label}_$ts.csv"
     }
 
+    /**
+     * Formatea una duración en milisegundos a una representación legible.
+     *
+     * @param ms Duración en milisegundos.
+     * @return Cadena formateada.
+     */
     private fun formatDuration(ms: Long): String {
         val s = ms / 1000
         val m = s / 60

@@ -21,8 +21,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Exportador de resultados de experimentos a formato PDF.
+ *
+ * Esta clase se encarga de construir un documento PDF completo a partir de los
+ * resultados de un experimento, incluyendo información de sesión, métricas
+ * cinemáticas, gráficas y tabla de datos.
+ */
 object PdfExporter {
 
+    /**
+     * Opciones de configuración para personalizar el contenido del PDF generado.
+     *
+     * Permite habilitar o deshabilitar secciones específicas del reporte.
+     */
     data class PdfOptions(
         val includeFecha: Boolean      = true,
         val includeDuracion: Boolean   = true,
@@ -59,6 +71,14 @@ object PdfExporter {
     private val FONT_BOLD   = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     private val FONT_NORMAL = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
 
+    /**
+     * Estadísticas básicas de una serie de datos.
+     *
+     * @property mean valor promedio
+     * @property min valor mínimo
+     * @property max valor máximo
+     * @property error error estimado (semirango)
+     */
     private data class SeriesStats(
         val mean:  Float,
         val min:   Float,
@@ -66,6 +86,12 @@ object PdfExporter {
         val error: Float
     )
 
+    /**
+     * Calcula estadísticas básicas de una serie temporal.
+     *
+     * @param series lista de pares (tiempo, valor)
+     * @return estadísticas calculadas o null si la serie está vacía
+     */
     private fun seriesStats(series: List<Pair<Float, Float>>): SeriesStats? {
         if (series.isEmpty()) return null
         val values = series.map { it.second }
@@ -75,11 +101,23 @@ object PdfExporter {
         return SeriesStats(mean = mean, min = min, max = max, error = (max - min) / 2f)
     }
 
+    /**
+     * Determina si los resultados corresponden a un conjunto de datos de demostración.
+     */
     private fun isDemo(results: ExperimentResults): Boolean =
         results.selectedLabel == "pelota"
                 && results.sampleCount == 71
                 && results.sampleRateHz == 23f
 
+    /**
+     * Genera y guarda un archivo PDF en la carpeta de descargas del dispositivo.
+     *
+     * @param context contexto de Android
+     * @param results resultados del experimento
+     * @param options opciones de exportación
+     * @param fileName nombre del archivo (opcional)
+     * @return true si se guardó correctamente, false en caso de error
+     */
     fun saveToDownloads(
         context: Context,
         results: ExperimentResults,
@@ -100,6 +138,9 @@ object PdfExporter {
         }
     }
 
+    /**
+     * Construye un nombre de archivo basado en la fecha y el objeto analizado.
+     */
     internal fun buildFileName(results: ExperimentResults): String {
         val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
             .format(Date(results.recordedAt))
@@ -110,6 +151,9 @@ object PdfExporter {
         return "PhiLab_${label}_$ts.pdf"
     }
 
+    /**
+     * Construye el contenido completo del documento PDF.
+     */
     private fun buildDocument(
         doc: PdfDocument,
         results: ExperimentResults,
@@ -211,6 +255,11 @@ object PdfExporter {
         renderer.finishPage()
     }
 
+    /**
+     * Clase interna encargada de renderizar el contenido visual del PDF.
+     *
+     * Maneja la paginación, estilos, gráficos, tablas y layout general.
+     */
     private class PageRenderer(private val doc: PdfDocument) {
         private var page: PdfDocument.Page = newPage()
         private var canvas: Canvas = page.canvas
@@ -220,6 +269,9 @@ object PdfExporter {
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COL_TEXT }
         private val rectPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
+        /**
+         * Crea una nueva página dentro del documento.
+         */
         private fun newPage(): PdfDocument.Page {
             val info = PdfDocument.PageInfo.Builder(
                 PAGE_W.toInt(), PAGE_H.toInt(), doc.pages.size + 1
@@ -227,6 +279,10 @@ object PdfExporter {
             return doc.startPage(info)
         }
 
+        /**
+         * Verifica si hay espacio suficiente en la página actual,
+         * y en caso contrario crea una nueva página.
+         */
         private fun ensureSpace(needed: Float) {
             if (cursorY + needed > PAGE_H - MARGIN - 20f) {
                 drawFooter()
@@ -240,11 +296,17 @@ object PdfExporter {
 
         fun finishPage() { doc.finishPage(page) }
 
+        /**
+         * Dibuja el fondo de la página.
+         */
         fun drawPageBackground() {
             bgPaint.color = COL_BG_PAGE
             canvas.drawRect(0f, 0f, PAGE_W, PAGE_H, bgPaint)
         }
 
+        /**
+         * Dibuja el encabezado principal del documento.
+         */
         fun drawAppHeader(date: String) {
             bgPaint.color = COL_BG_HEADER
             canvas.drawRect(0f, 0f, PAGE_W, 80f, bgPaint)
@@ -268,6 +330,9 @@ object PdfExporter {
             cursorY = 100f
         }
 
+        /**
+         * Dibuja el título de la sección.
+         */
         fun drawSectionTitle(title: String) {
             ensureSpace(28f)
             textPaint.apply { typeface = FONT_BOLD; textSize = 9f; color = COL_ACCENT }
@@ -277,6 +342,9 @@ object PdfExporter {
             cursorY += 26f
         }
 
+        /**
+         * Dibuja una tarjeta con pares clave-valor.
+         */
         fun drawKeyValueCard(rows: List<Pair<String, String>>) {
             val rowH   = 22f
             val totalH = rows.size * rowH + 8f
@@ -312,6 +380,9 @@ object PdfExporter {
             cursorY += totalH + 12f
         }
 
+        /**
+         * Dibuja una grilla de indicadores clave-valor.
+         */
         fun drawKpiGrid(kpis: List<Triple<String, String, Int>>) {
             val colW  = CONTENT_W / 2f - 6f
             val cardH = 52f
@@ -341,6 +412,9 @@ object PdfExporter {
             cursorY += 4f
         }
 
+        /**
+         * Dibuja un gráfico en el documento PDF.
+         */
         fun drawChart(
             title:     String,
             points:    List<Pair<Float, Float>>,
@@ -492,6 +566,9 @@ object PdfExporter {
             }
         }
 
+        /**
+         * Dibuja una tabla en el documento PDF.
+         */
         fun drawTable(headers: List<String>, rows: List<List<String>>) {
             val colW    = CONTENT_W / headers.size
             val rowH    = 18f
@@ -546,6 +623,9 @@ object PdfExporter {
             cursorY += 14f
         }
 
+        /**
+         * Dibuja el pie de página del documento.
+         */
         fun drawFooter() {
             val footerY = PAGE_H - 20f
             bgPaint.color = COL_DIVIDER
@@ -566,6 +646,9 @@ object PdfExporter {
         }
     }
 
+    /**
+     * Abre un flujo de salida hacia la carpeta de descargas del dispositivo.
+     */
     private fun openOutputStream(context: Context, fileName: String): OutputStream? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
@@ -589,6 +672,9 @@ object PdfExporter {
         }
     }
 
+    /**
+     * Abre un flujo de salida hacia la carpeta de descargas del dispositivo.
+     */
     private fun formatDuration(ms: Long): String {
         val s = ms / 1000; val m = s / 60
         val sc = s % 60;   val cs = (ms % 1000) / 10
