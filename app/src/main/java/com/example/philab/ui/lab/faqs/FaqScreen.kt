@@ -34,6 +34,17 @@ import com.example.philab.ui.theme.AppDrawables
 import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
 
+/**
+ * Pantalla de preguntas frecuentes (FAQ).
+ *
+ * Muestra una lista de preguntas y respuestas relacionadas con el uso
+ * del módulo de laboratorio. Cada ítem puede expandirse para ver su contenido,
+ * incluyendo texto, imágenes o acciones de navegación.
+ *
+ * @param onBack Acción ejecutada al regresar a la pantalla anterior.
+ * @param onNavigate Acción opcional para navegar a otras pantallas desde un ítem.
+ * @param viewModel ViewModel que provee la lista de preguntas frecuentes.
+ */
 @Composable
 fun FaqScreen(
     onBack: () -> Unit,
@@ -118,6 +129,16 @@ fun FaqScreen(
     }
 }
 
+/**
+ * Componente que representa un ítem individual de la lista de preguntas frecuentes.
+ *
+ * Permite expandir y contraer la respuesta, y opcionalmente mostrar:
+ * - Una imagen asociada.
+ * - Un botón de navegación hacia otra pantalla.
+ *
+ * @param faq Objeto que contiene la pregunta, respuesta y posibles acciones.
+ * @param onNavigate Acción opcional para manejar navegación desde el ítem.
+ */
 @Composable
 fun FaqItem(
     faq: Faq,
@@ -155,7 +176,6 @@ fun FaqItem(
         AnimatedVisibility(visible = expanded) {
             Column(modifier = Modifier.padding(top = 6.dp)) {
 
-                // Respuesta
                 Text(
                     text = faq.answer,
                     fontSize = 14.sp,
@@ -163,7 +183,6 @@ fun FaqItem(
                     lineHeight = 18.sp
                 )
 
-                // Imagen inline
                 if (faq.actionType == "image" && faq.actionPayload != null) {
                     val resId = context.resources.getIdentifier(
                         faq.actionPayload, "drawable", context.packageName
@@ -183,7 +202,6 @@ fun FaqItem(
                     }
                 }
 
-                // Botón de navegación
                 if (faq.actionType == "navigate" && faq.actionPayload != null) {
                     Spacer(modifier = Modifier.height(10.dp))
                     TextButton(

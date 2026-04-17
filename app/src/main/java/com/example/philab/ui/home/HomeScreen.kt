@@ -26,6 +26,16 @@ import com.example.philab.R
 import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
 
+/**
+ * Pantalla principal de la aplicación.
+ *
+ * Presenta el menú inicial con accesos a los distintos módulos:
+ * conceptos teóricos, laboratorio y resultados.
+ *
+ * @param onOpenTheory Acción para navegar al módulo teórico.
+ * @param onOpenHistory Acción para navegar al historial de resultados.
+ * @param onOpenLab Acción para navegar al módulo de laboratorio.
+ */
 @Composable
 fun HomeScreen(
     onOpenTheory: () -> Unit,
@@ -34,7 +44,6 @@ fun HomeScreen(
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // Background
         Image(
             painter = painterResource(id = R.drawable.pl_background),
             contentDescription = null,
@@ -42,7 +51,6 @@ fun HomeScreen(
             contentScale = ContentScale.Crop
         )
 
-        // Botones
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -75,6 +83,17 @@ fun HomeScreen(
     }
 }
 
+/**
+ * Botón reutilizable del menú principal.
+ *
+ * Define el estilo visual y comportamiento de los botones mostrados
+ * en la pantalla de inicio.
+ *
+ * @param text Texto del botón.
+ * @param containerColor Color de fondo del botón.
+ * @param contentColor Color del texto.
+ * @param onClick Acción ejecutada al presionar el botón.
+ */
 @Composable
 private fun HomeMenuButton(
     text: String,
@@ -106,6 +125,9 @@ private fun HomeMenuButton(
     }
 }
 
+/**
+ * Vista previa de la pantalla principal para herramientas de diseño.
+ */
 @Preview(showBackground = true)
 @Composable
 private fun HomeScreenPreview() {

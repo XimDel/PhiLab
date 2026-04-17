@@ -27,6 +27,17 @@ import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
 import com.example.philab.ui.theme.AppDrawables
 
+/**
+ * Pantalla principal del módulo de laboratorio.
+ *
+ * Permite al usuario acceder a las funcionalidades relacionadas con
+ * experimentos, guía de uso y generación de marcadores ArUco.
+ *
+ * @param onBack Acción ejecutada al regresar a la pantalla anterior.
+ * @param onStartExperiment Acción para iniciar un experimento.
+ * @param onHowItWorks Acción para navegar a la sección explicativa.
+ * @param onOpenArucoGenerator Acción para abrir el generador de marcadores ArUco.
+ */
 @Composable
 fun LabModuleScreen(
     onBack: () -> Unit,
@@ -110,6 +121,19 @@ fun LabModuleScreen(
     }
 }
 
+/**
+ * Botón reutilizable del menú del laboratorio.
+ *
+ * Combina un ícono y texto para representar distintas acciones dentro
+ * del módulo, manteniendo consistencia visual.
+ *
+ * @param iconRes Recurso drawable del ícono.
+ * @param text Texto mostrado en el botón.
+ * @param containerColor Color de fondo del botón.
+ * @param contentColor Color del contenido (texto e ícono).
+ * @param enabled Indica si el botón está habilitado.
+ * @param onClick Acción ejecutada al presionar el botón.
+ */
 @Composable
 private fun LabMenuButton(
     iconRes: Int,
@@ -162,6 +186,9 @@ private fun LabMenuButton(
     }
 }
 
+/**
+ * Vista previa de la pantalla del módulo de laboratorio.
+ */
 @Preview(showBackground = true)
 @Composable
 private fun LabModuleScreenPreview() {
