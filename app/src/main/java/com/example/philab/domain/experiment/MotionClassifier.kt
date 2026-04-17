@@ -3,8 +3,26 @@ package com.example.philab.domain.experiment
 import kotlin.math.abs
 import kotlin.math.sqrt
 
+/**
+ * Clasifica el tipo de movimiento de un objeto a partir de los resultados
+ * cinemáticos obtenidos en un experimento.
+ *
+ * El análisis se basa en la variación de la velocidad y la aceleración
+ * calculadas a partir de los puntos registrados.
+ */
 object MotionClassifier {
 
+    /**
+     * Determina el tipo de movimiento según los datos proporcionados.
+     *
+     * El criterio de clasificación es:
+     * - Movimiento Rectilíneo Uniforme (MRU): aceleración promedio cercana a cero.
+     * - Movimiento Rectilíneo Uniformemente Acelerado (MRUA): aceleración aproximadamente constante.
+     * - Movimiento No Uniforme: aceleración variable.
+     *
+     * @param results Resultados del experimento que contienen los puntos y métricas calculadas.
+     * @return Descripción del tipo de movimiento detectado.
+     */
     fun classify(results: ExperimentResults): String {
         val points = results.points
         if (points.size < 3) return "Movimiento detectado"

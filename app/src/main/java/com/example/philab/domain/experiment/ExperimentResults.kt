@@ -1,34 +1,107 @@
 package com.example.philab.domain.experiment
 
 /**
- * Resultados cinemáticos calculados al finalizar la sesión.
- * Todos los valores usan la misma unidad que los DataPoints (cm o px).
+ * Representa los resultados cinemáticos obtenidos al finalizar una sesión de experimento.
+ *
+ * Contiene tanto los datos originales registrados como los valores derivados del análisis
+ * (distancia, velocidad, aceleración), junto con metadatos de la captura.
+ *
+ * Todas las magnitudes están expresadas en la misma unidad base indicada en [unit].
  */
 data class ExperimentResults(
+
+    /**
+     * Lista de puntos registrados durante el experimento.
+     */
     val points: List<DataPoint>,
-    val unit: String,               // "cm" o "px"
+
+    /**
+     * Unidad de medida utilizada en los datos.
+     * Puede ser "cm" si existe calibración o "px" en caso contrario.
+     */
+    val unit: String,
+
+    /**
+     * Etiqueta seleccionada asociada al objeto o medición.
+     */
     val selectedLabel: String,
 
-    // Metadatos de la sesión
+    /**
+     * Duración total de la sesión en milisegundos.
+     */
     val durationMs: Long,
+
+    /**
+     * Número total de muestras registradas.
+     */
     val sampleCount: Int,
-    val sampleRateHz: Float,        // frecuencia real de muestreo
-    val cmPerPx: Float,             // 1.0 si no había calibración
+
+    /**
+     * Frecuencia real de muestreo en Hertz (Hz).
+     */
+    val sampleRateHz: Float,
+
+    /**
+     * Factor de conversión de píxeles a centímetros.
+     * Será 1.0 si no se realizó calibración.
+     */
+    val cmPerPx: Float,
+
+    /**
+     * Marca de tiempo en la que se registraron los resultados.
+     */
     val recordedAt: Long = System.currentTimeMillis(),
 
-    // Cinemática
-    val totalDistanceCm: Float,     // distancia total recorrida (|Δx| acumulado)
-    val displacementCm: Float,      // desplazamiento neto x(final) - x(inicio)
-    val avgSpeedCmS: Float,         // distancia / tiempo escalar
-    // avgVelocityCmS eliminado — redundante con avgSpeedCmS para el caso 1D actual
-    val avgAccelCmS2: Float,        // aceleración media entre primer y último intervalo
+    /**
+     * Distancia total recorrida acumulada (suma de |Δx|).
+     */
+    val totalDistanceCm: Float,
 
-    // Para graficar x(t)
+    /**
+     * Desplazamiento neto: diferencia entre posición final e inicial.
+     */
+    val displacementCm: Float,
+
+    /**
+     * Velocidad promedio escalar (distancia total / tiempo).
+     */
+    val avgSpeedCmS: Float,
+
+    /**
+     * Aceleración promedio calculada entre el primer y último intervalo.
+     */
+    val avgAccelCmS2: Float,
+
+    /**
+     * Valor mínimo de posición en el eje X para graficación.
+     */
     val minX: Float,
+
+    /**
+     * Valor máximo de posición en el eje X para graficación.
+     */
     val maxX: Float,
+
+    /**
+     * Tiempo mínimo registrado para graficación.
+     */
     val minT: Float,
+
+    /**
+     * Tiempo máximo registrado para graficación.
+     */
     val maxT: Float
 ) {
-    val isCalibrated: Boolean get() = unit == "cm"
-    val isEmpty: Boolean get() = points.isEmpty()
+
+    /**
+     * Indica si los datos fueron calibrados a unidades físicas (centímetros).
+     */
+    val isCalibrated: Boolean
+        get() = unit == "cm"
+
+    /**
+     * Indica si no hay puntos registrados en el experimento.
+     */
+    val isEmpty: Boolean
+        get() = points.isEmpty()
 }
