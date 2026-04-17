@@ -36,7 +36,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Paleta
 private val AccentGreen   = Color(0xFF1D9E75)
 private val AccentRed     = Color(0xFFE53935)
 private val AccentBlue    = Color(0xFF2196F3)
@@ -48,6 +47,22 @@ private val BgHeader      = Color.White.copy(alpha = 0.85f)
 private val BorderColor   = Color(0xFFCCCCDD)
 private val TABLE_MAX_HEIGHT = 252.dp
 
+/**
+ * Pantalla de historial de experimentos.
+ *
+ * Muestra una tabla paginada con todas las sesiones guardadas, permite seleccionar
+ * una sesión y ofrece tres acciones sobre ella: consultar sus resultados, renombrar
+ * el experimento y eliminarlo permanentemente.
+ *
+ * La pantalla se construye sobre un fondo decorativo y gestiona internamente los
+ * diálogos de renombrado y confirmación de eliminación. El estado de sesiones
+ * proviene de [HistoryViewModel], que se crea mediante [HistoryViewModelFactory]
+ * a partir del [SessionRepository] local.
+ *
+ * @param onBack        Callback invocado al pulsar el botón de retroceso.
+ * @param onOpenSession Callback invocado al confirmar "Consultar" con el
+ *                      identificador de la sesión seleccionada.
+ */
 @Composable
 fun HistoryScreen(
     onBack: () -> Unit,
@@ -115,7 +130,6 @@ fun HistoryScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Tabla
                 if (sessions.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -235,7 +249,6 @@ fun HistoryScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                //Botones de acción
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
@@ -263,12 +276,10 @@ fun HistoryScreen(
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
-
             }
         }
     }
 
-    // Diálogo renombrar
     if (showRenameDialog && selectedId != null) {
         val session = sessions.firstOrNull { it.idSession == selectedId }
         if (session != null) {
@@ -283,7 +294,6 @@ fun HistoryScreen(
         }
     }
 
-    // Diálogo confirmar eliminación
     if (showDeleteConfirm && selectedId != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
@@ -307,8 +317,18 @@ fun HistoryScreen(
     }
 }
 
-// Componentes
-
+/**
+ * Botón de acción compuesto por un icono circular y una etiqueta de texto debajo.
+ *
+ * Se muestra habilitado o deshabilitado según [enabled], cambiando el color de
+ * fondo, borde e icono en consecuencia.
+ *
+ * @param icon    Icono vectorial que representa la acción.
+ * @param label   Texto descriptivo mostrado debajo del icono; admite saltos de línea.
+ * @param color   Color de acento aplicado al fondo, borde e icono cuando está habilitado.
+ * @param enabled Controla si el botón acepta interacciones del usuario.
+ * @param onClick Callback invocado al pulsar el botón cuando está habilitado.
+ */
 @Composable
 private fun ActionButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -352,6 +372,16 @@ private fun ActionButton(
     }
 }
 
+/**
+ * Diálogo modal para cambiar el nombre de un experimento.
+ *
+ * Muestra un [OutlinedTextField] inicializado con [currentName]. Si el usuario
+ * confirma con el campo vacío o solo espacios, se conserva el nombre original.
+ *
+ * @param currentName Nombre actual del experimento, usado como valor inicial del campo.
+ * @param onConfirm   Callback invocado con el nuevo nombre al pulsar "Guardar".
+ * @param onDismiss   Callback invocado al cancelar o cerrar el diálogo.
+ */
 @Composable
 private fun RenameDialog(
     currentName: String,

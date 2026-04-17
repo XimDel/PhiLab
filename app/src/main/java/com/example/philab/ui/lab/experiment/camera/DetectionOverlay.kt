@@ -17,6 +17,29 @@ import kotlin.math.max
 import com.example.philab.core.camera.UiDetection
 import com.example.philab.core.measurement.MeasurementResult
 
+/**
+ * Overlay de detecciones dibujado sobre el preview de cámara.
+ *
+ * Renderiza en un [Canvas] de Compose los bounding boxes, centroides y etiquetas
+ * de todas las detecciones del frame actual. El objeto seleccionado por el usuario
+ * se distingue visualmente con bordes amarillos más gruesos, un icono de estrella
+ * y, si hay calibración activa, las dimensiones físicas del objeto.
+ *
+ * Las coordenadas del espacio de imagen se mapean al espacio de pantalla aplicando
+ * el mismo escalado `fit-center` (`max(scaleX, scaleY)`) que usa CameraX para el
+ * preview, de modo que los boxes se alineen perfectamente con los objetos visibles.
+ *
+ * Si [viewSize] contiene alguna dimensión en cero, o si [detections] está vacía,
+ * el composable no dibuja nada.
+ *
+ * @param detections       Lista de detecciones del frame actual con sus coordenadas
+ *                         en el espacio de imagen fuente.
+ * @param viewSize         Tamaño en píxeles del componente de preview en pantalla.
+ * @param measurementResult Resultado de la medición física del objeto trackeado; si no
+ *                         es `null`, se muestra junto al bounding box seleccionado.
+ * @param selectedLabel    Etiqueta personalizada del objeto seleccionado por el usuario;
+ *                         sustituye a la etiqueta del detector cuando está presente.
+ */
 @Composable
 fun DetectionOverlay(
     detections: List<UiDetection>,
@@ -34,7 +57,7 @@ fun DetectionOverlay(
         val dstW = viewSize.width.toFloat()
         val dstH = viewSize.height.toFloat()
 
-        val scale = max(dstW / srcW, dstH / srcH)
+        val scale   = max(dstW / srcW, dstH / srcH)
         val scaledW = srcW * scale
         val scaledH = srcH * scale
         val dx = (dstW - scaledW) / 2f
@@ -43,7 +66,6 @@ fun DetectionOverlay(
         fun mapX(x: Float) = x * scale + dx
         fun mapY(y: Float) = y * scale + dy
 
-        // Paints para detecciones normales
         val textPaint = Paint().apply {
             color = Color.White.toArgb(); isAntiAlias = true
             textSize = 28f; typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -56,7 +78,6 @@ fun DetectionOverlay(
             color = Color(0f, 0f, 0f, 0.55f).toArgb(); isAntiAlias = true
         }
 
-        // Paints para el objeto seleccionado
         val selectedTextPaint = Paint().apply {
             color = Color(0xFF111111).toArgb(); isAntiAlias = true
             textSize = 28f; typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -77,22 +98,20 @@ fun DetectionOverlay(
 
             if (right <= left || bottom <= top) return@forEachIndexed
 
-            // Amarillo y más grueso si es seleccionado, verde normal
-            val boxColor = if (d.isSelected) Color(0xFFFFD600) else Color.Green
+            val boxColor  = if (d.isSelected) Color(0xFFFFD600) else Color.Green
             val boxStroke = if (d.isSelected) 6f else 4f
 
             drawRect(
-                color = boxColor,
+                color   = boxColor,
                 topLeft = Offset(left, top),
-                size = Size(right - left, bottom - top),
-                style = Stroke(width = boxStroke)
+                size    = Size(right - left, bottom - top),
+                style   = Stroke(width = boxStroke)
             )
 
-            // Centroide
             val centerX = (left + right) / 2f
             val centerY = (top + bottom) / 2f
             drawCircle(
-                color = if (d.isSelected) Color(0xFFFFD600) else Color.Red,
+                color  = if (d.isSelected) Color(0xFFFFD600) else Color.Red,
                 radius = if (d.isSelected) 10f else 8f,
                 center = Offset(centerX, centerY)
             )
@@ -102,26 +121,26 @@ fun DetectionOverlay(
             val activeDimPaint   = if (d.isSelected) selectedDimPaint else dimPaint
 
             val displayLabel = if (d.isSelected && selectedLabel != null) selectedLabel else d.label
-            val labelText = "$displayLabel ${(d.score * 100).toInt()}%"
-            val selectedTag = if (d.isSelected) "★ Objeto seleccionado" else null
+            val labelText    = "$displayLabel ${(d.score * 100).toInt()}%"
+            val selectedTag  = if (d.isSelected) "★ Objeto seleccionado" else null
 
             val labelWidth = activeLabelPaint.measureText(labelText)
-            val labelFm = activeLabelPaint.fontMetrics
-            val labelH = labelFm.descent - labelFm.ascent
+            val labelFm    = activeLabelPaint.fontMetrics
+            val labelH     = labelFm.descent - labelFm.ascent
             val paddingX = 12f; val paddingY = 6f
 
             val dimText = if ((d.isSelected || index == 0) && measurementResult != null) {
                 "${"%.1f".format(measurementResult.widthCm)} × ${"%.1f".format(measurementResult.heightCm)} cm"
             } else null
 
-            val tagWidth = if (selectedTag != null) activeDimPaint.measureText(selectedTag) else 0f
-            val tagFm = activeDimPaint.fontMetrics
-            val tagH = if (selectedTag != null) tagFm.descent - tagFm.ascent else 0f
+            val tagWidth      = if (selectedTag != null) activeDimPaint.measureText(selectedTag) else 0f
+            val tagFm         = activeDimPaint.fontMetrics
+            val tagH          = if (selectedTag != null) tagFm.descent - tagFm.ascent else 0f
             val tagPaddingTop = if (selectedTag != null) 3f else 0f
 
-            val dimWidth = if (dimText != null) activeDimPaint.measureText(dimText) else 0f
-            val dimFm = activeDimPaint.fontMetrics
-            val dimH = if (dimText != null) dimFm.descent - dimFm.ascent else 0f
+            val dimWidth      = if (dimText != null) activeDimPaint.measureText(dimText) else 0f
+            val dimFm         = activeDimPaint.fontMetrics
+            val dimH          = if (dimText != null) dimFm.descent - dimFm.ascent else 0f
             val dimPaddingTop = if (dimText != null) 4f else 0f
 
             val bgW = maxOf(labelWidth, dimWidth, tagWidth) + paddingX * 2f
@@ -129,11 +148,11 @@ fun DetectionOverlay(
                     (if (selectedTag != null) tagH + tagPaddingTop else 0f) +
                     (if (dimText != null) dimH + dimPaddingTop else 0f)
 
-            val bgLeft = left
+            val bgLeft        = left
             val bgTopPreferred = top - bgH - 2f
-            val bgTop = if (bgTopPreferred >= 0f) bgTopPreferred else top + 4f
-            val bgRight = (bgLeft + bgW).coerceAtMost(size.width)
-            val bgBottom = bgTop + bgH
+            val bgTop         = if (bgTopPreferred >= 0f) bgTopPreferred else top + 4f
+            val bgRight       = (bgLeft + bgW).coerceAtMost(size.width)
+            val bgBottom      = bgTop + bgH
 
             drawIntoCanvas { canvas ->
                 val nc = canvas.nativeCanvas

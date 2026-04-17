@@ -26,27 +26,50 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val SheetBg       = Color(0xFFF8F8FC)
-private val CardBg        = Color.White
-private val AccentGreen   = Color(0xFF1D9E75)
-private val TextPrimary   = Color(0xFF1A1A2E)
-private val TextSecondary = Color(0xFF7A7A8C)
-private val DividerCol    = Color(0xFFEEEEF2)
+private val SheetBg          = Color(0xFFF8F8FC)
+private val CardBg           = Color.White
+private val AccentGreen      = Color(0xFF1D9E75)
+private val TextPrimary      = Color(0xFF1A1A2E)
+private val TextSecondary    = Color(0xFF7A7A8C)
+private val DividerCol       = Color(0xFFEEEEF2)
 private val ToggleSelected   = Color(0xFF22BE8B)
 private val ToggleUnselected = Color(0xFFB7B3B3)
 
+/**
+ * Opciones de exportación CSV seleccionables por el usuario en la UI.
+ *
+ * Cada propiedad controla si la sección o campo correspondiente se incluye
+ * en el archivo generado. Los valores predeterminados representan la
+ * configuración recomendada para una exportación estándar.
+ *
+ * @property fecha      Incluir fecha y hora de la sesión en la metadata.
+ * @property duracion   Incluir duración total de la sesión.
+ * @property muestras   Incluir número total de muestras capturadas.
+ * @property frecuencia Incluir frecuencia de muestreo en Hz.
+ * @property escala     Incluir el factor de escala `cm/px` de la calibración.
+ * @property unidad     Incluir la unidad de medida utilizada.
+ * @property objeto     Incluir la etiqueta del objeto seguido.
+ * @property resumen    Incluir el resumen cinemático calculado.
+ * @property tabla      Incluir la tabla de puntos de trayectoria.
+ */
 private data class CsvUiOptions(
-    val fecha: Boolean        = true,
-    val duracion: Boolean     = true,
-    val muestras: Boolean     = true,
-    val frecuencia: Boolean   = true,
-    val escala: Boolean       = true,
-    val unidad: Boolean       = false,
-    val objeto: Boolean       = false,
-    val resumen: Boolean      = true,
-    val tabla: Boolean        = true,
+    val fecha: Boolean      = true,
+    val duracion: Boolean   = true,
+    val muestras: Boolean   = true,
+    val frecuencia: Boolean = true,
+    val escala: Boolean     = true,
+    val unidad: Boolean     = false,
+    val objeto: Boolean     = false,
+    val resumen: Boolean    = true,
+    val tabla: Boolean      = true,
 )
 
+/**
+ * Convierte las opciones de UI [CsvUiOptions] al modelo de dominio [CsvExporter.CsvOptions].
+ *
+ * La bandera `includeMetadata` se activa si al menos uno de los campos de
+ * metadata está seleccionado.
+ */
 private fun CsvUiOptions.toCsvOptions() = CsvExporter.CsvOptions(
     includeMetadata   = fecha || duracion || muestras || frecuencia || escala || unidad || objeto,
     includeFecha      = fecha,
@@ -60,6 +83,24 @@ private fun CsvUiOptions.toCsvOptions() = CsvExporter.CsvOptions(
     includeTabla      = tabla,
 )
 
+/**
+ * Opciones de exportación PDF seleccionables por el usuario en la UI.
+ *
+ * Extiende las opciones CSV con la posibilidad de incluir gráficas en el
+ * documento generado. Los valores predeterminados representan la configuración
+ * recomendada para un informe completo.
+ *
+ * @property fecha      Incluir fecha y hora de la sesión en la metadata.
+ * @property duracion   Incluir duración total de la sesión.
+ * @property muestras   Incluir número total de muestras capturadas.
+ * @property frecuencia Incluir frecuencia de muestreo en Hz.
+ * @property escala     Incluir el factor de escala `cm/px` de la calibración.
+ * @property unidad     Incluir la unidad de medida utilizada.
+ * @property objeto     Incluir la etiqueta del objeto seguido.
+ * @property resumen    Incluir el resumen cinemático calculado.
+ * @property tabla      Incluir la tabla de puntos de trayectoria.
+ * @property graficas   Incluir las gráficas cinemáticas generadas.
+ */
 internal data class PdfUiOptions(
     val fecha: Boolean      = true,
     val duracion: Boolean   = true,
@@ -73,6 +114,9 @@ internal data class PdfUiOptions(
     val graficas: Boolean   = true,
 )
 
+/**
+ * Convierte las opciones de UI [PdfUiOptions] al modelo de dominio [PdfExporter.PdfOptions].
+ */
 private fun PdfUiOptions.toPdfOptions() = PdfExporter.PdfOptions(
     includeFecha      = fecha,
     includeDuracion   = duracion,
@@ -86,6 +130,22 @@ private fun PdfUiOptions.toPdfOptions() = PdfExporter.PdfOptions(
     includeGraficas   = graficas,
 )
 
+/**
+ * Bottom sheet modal para configurar y lanzar la exportación de resultados.
+ *
+ * Presenta dos pestañas —CSV y PDF— con opciones de configuración independientes.
+ * La exportación se ejecuta en el dispatcher IO y muestra un Toast al completarse.
+ * Si la exportación es exitosa, el sheet se cierra automáticamente.
+ *
+ * El modo "demo" deshabilita la opción de gráficas en PDF cuando los resultados
+ * corresponden al experimento de demostración predeterminado.
+ *
+ * @param results      Resultados del experimento a exportar.
+ * @param sheetState   Estado del [ModalBottomSheet] gestionado por el caller.
+ * @param onDismiss    Callback invocado al cerrar el sheet manualmente o tras exportar.
+ * @param onCsvSaved   Callback invocado con `(éxito, nombreArchivo)` al terminar la exportación CSV.
+ * @param onPdfSaved   Callback invocado con `(éxito, nombreArchivo)` al terminar la exportación PDF.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportBottomSheet(
@@ -95,13 +155,13 @@ fun ExportBottomSheet(
     onCsvSaved: (success: Boolean, fileName: String) -> Unit,
     onPdfSaved: (success: Boolean, fileName: String) -> Unit = { _, _ -> },
 ) {
-    val context      = LocalContext.current
-    val scope        = rememberCoroutineScope()
-    var isExporting  by remember { mutableStateOf(false) }
+    val context     = LocalContext.current
+    val scope       = rememberCoroutineScope()
+    var isExporting by remember { mutableStateOf(false) }
 
-    var selectedTab  by remember { mutableIntStateOf(0) }
-    var csvOptions   by remember { mutableStateOf(CsvUiOptions()) }
-    var pdfOptions   by remember { mutableStateOf(PdfUiOptions()) }
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var csvOptions  by remember { mutableStateOf(CsvUiOptions()) }
+    var pdfOptions  by remember { mutableStateOf(PdfUiOptions()) }
 
     val isDemo = results.selectedLabel == "pelota"
             && results.sampleCount == 71
@@ -213,6 +273,15 @@ fun ExportBottomSheet(
     }
 }
 
+/**
+ * Fila de pestañas con dos opciones: CSV y PDF.
+ *
+ * Renderiza dos botones estilo píldora dentro de un contenedor redondeado.
+ * La pestaña activa se resalta con el color de acento; la inactiva es transparente.
+ *
+ * @param selectedTab Índice de la pestaña activa (`0` = CSV, `1` = PDF).
+ * @param onSelect    Callback invocado con el índice de la pestaña pulsada.
+ */
 @Composable
 private fun ExportTabRow(selectedTab: Int, onSelect: (Int) -> Unit) {
     Row(
@@ -249,6 +318,21 @@ private fun ExportTabRow(selectedTab: Int, onSelect: (Int) -> Unit) {
     }
 }
 
+/**
+ * Contenido de la pestaña de exportación CSV.
+ *
+ * Muestra dos secciones de opciones con [ToggleRow]: metadata de la sesión
+ * y resultados. Incluye un contador de filas a exportar cuando la tabla está
+ * activada, y un botón de exportación que se deshabilita si no hay ninguna
+ * opción seleccionada o si hay una exportación en curso.
+ *
+ * @param results     Resultados del experimento; se usa para mostrar el número de filas
+ *                    y para condicionar la opción de escala según la calibración.
+ * @param options     Estado actual de las opciones CSV.
+ * @param onChange    Callback invocado con las opciones actualizadas al cambiar un toggle.
+ * @param isExporting Indica si hay una exportación en curso; deshabilita el botón.
+ * @param onExport    Callback invocado al pulsar el botón de exportación.
+ */
 @Composable
 private fun CsvTabContent(
     results: ExperimentResults,
@@ -258,14 +342,14 @@ private fun CsvTabContent(
     onExport: () -> Unit,
 ) {
     ToggleSection(title = "Metadata de la sesión") {
-        ToggleRow("Fecha y hora",       options.fecha)        { onChange(options.copy(fecha = it)) }
-        ToggleRow("Duración",           options.duracion)     { onChange(options.copy(duracion = it)) }
-        ToggleRow("Muestras",           options.muestras)     { onChange(options.copy(muestras = it)) }
-        ToggleRow("Frecuencia",         options.frecuencia)   { onChange(options.copy(frecuencia = it)) }
+        ToggleRow("Fecha y hora",       options.fecha)      { onChange(options.copy(fecha = it)) }
+        ToggleRow("Duración",           options.duracion)   { onChange(options.copy(duracion = it)) }
+        ToggleRow("Muestras",           options.muestras)   { onChange(options.copy(muestras = it)) }
+        ToggleRow("Frecuencia",         options.frecuencia) { onChange(options.copy(frecuencia = it)) }
         if (results.isCalibrated)
-            ToggleRow("Escala (cm/px)", options.escala)       { onChange(options.copy(escala = it)) }
-        ToggleRow("Unidad",             options.unidad)       { onChange(options.copy(unidad = it)) }
-        ToggleRow("Objeto seguido",     options.objeto)       { onChange(options.copy(objeto = it)) }
+            ToggleRow("Escala (cm/px)", options.escala)     { onChange(options.copy(escala = it)) }
+        ToggleRow("Unidad",             options.unidad)     { onChange(options.copy(unidad = it)) }
+        ToggleRow("Objeto seguido",     options.objeto)     { onChange(options.copy(objeto = it)) }
     }
 
     Spacer(Modifier.height(12.dp))
@@ -314,6 +398,20 @@ private fun CsvTabContent(
     }
 }
 
+/**
+ * Contenido de la pestaña de exportación PDF.
+ *
+ * Idéntica en estructura a [CsvTabContent] pero añade la opción de gráficas.
+ * Cuando [graficasDisabled] es `true`, el toggle de gráficas se deshabilita y
+ * se muestra un texto indicando que el experimento es de demostración.
+ *
+ * @param results          Resultados del experimento.
+ * @param options          Estado actual de las opciones PDF.
+ * @param onChange         Callback invocado con las opciones actualizadas al cambiar un toggle.
+ * @param isExporting      Indica si hay una exportación en curso; deshabilita el botón.
+ * @param graficasDisabled Si `true`, la opción de gráficas se fuerza a deshabilitada.
+ * @param onExport         Callback invocado al pulsar el botón de exportación.
+ */
 @Composable
 private fun PdfTabContent(
     results: ExperimentResults,
@@ -392,6 +490,13 @@ private fun PdfTabContent(
     }
 }
 
+/**
+ * Contenedor con tarjeta redondeada que agrupa un conjunto de [ToggleRow] bajo
+ * un título de sección.
+ *
+ * @param title   Texto del encabezado de la sección.
+ * @param content Contenido composable de la sección; típicamente una serie de [ToggleRow].
+ */
 @Composable
 private fun ToggleSection(
     title: String,
@@ -415,6 +520,15 @@ private fun ToggleSection(
     }
 }
 
+/**
+ * Fila con un texto descriptivo y un [Switch] para activar o desactivar una opción
+ * de exportación.
+ *
+ * @param label    Texto descriptivo de la opción.
+ * @param checked  Estado actual del switch.
+ * @param enabled  Si `false`, el switch se muestra deshabilitado y el texto en color secundario.
+ * @param onToggle Callback invocado con el nuevo valor booleano al cambiar el switch.
+ */
 @Composable
 private fun ToggleRow(
     label: String,
@@ -439,10 +553,10 @@ private fun ToggleRow(
             onCheckedChange = onToggle,
             enabled         = enabled,
             colors          = SwitchDefaults.colors(
-                checkedThumbColor       = Color.White,
-                checkedTrackColor       = ToggleSelected,
-                uncheckedThumbColor     = Color.White,
-                uncheckedTrackColor     = ToggleUnselected,
+                checkedThumbColor           = Color.White,
+                checkedTrackColor           = ToggleSelected,
+                uncheckedThumbColor         = Color.White,
+                uncheckedTrackColor         = ToggleUnselected,
                 disabledCheckedTrackColor   = ToggleUnselected,
                 disabledUncheckedTrackColor = ToggleUnselected,
             )

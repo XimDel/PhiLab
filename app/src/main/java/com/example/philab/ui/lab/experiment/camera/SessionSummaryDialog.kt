@@ -49,6 +49,25 @@ private val TextPrimary   = Color(0xFF1A1A2E)
 private val TextSecondary = Color(0xFF7A7A8C)
 private val DividerColor  = Color(0xFFEEEEF2)
 
+/**
+ * Diálogo modal que muestra el resumen cinemático de una sesión grabada y
+ * permite al usuario nombrar el experimento, editar la etiqueta del objeto
+ * seguido, y guardar o descartar los resultados.
+ *
+ * El diálogo adapta su layout al modo retrato y al modo paisaje mediante
+ * [LocalConfiguration], reduciendo márgenes e iconos en horizontal para
+ * aprovechar mejor el espacio disponible.
+ *
+ * No puede cerrarse pulsando fuera de él (`onDismissRequest` está vacío),
+ * obligando al usuario a elegir explícitamente entre "Guardar" y "Reiniciar".
+ *
+ * @param results   Resultados del experimento a mostrar: métricas cinemáticas,
+ *                  unidades, calibración y etiqueta del objeto.
+ * @param onSave    Callback invocado con `(nombreExperimento, etiquetaObjeto)` al
+ *                  pulsar "Guardar". Los valores vacíos se sustituyen por sus
+ *                  valores predeterminados antes de invocar el callback.
+ * @param onRestart Callback invocado al pulsar "Reiniciar", sin guardar los resultados.
+ */
 @Composable
 fun SessionSummaryDialog(
     results: ExperimentResults,
@@ -98,7 +117,6 @@ fun SessionSummaryDialog(
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Ícono check — más pequeño en landscape
                 Box(
                     modifier = Modifier
                         .size(if (isLandscape) 40.dp else 56.dp)
@@ -138,7 +156,6 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(if (isLandscape) 4.dp else 6.dp))
 
-                // Chip editable: nombre del objeto
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -199,7 +216,6 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(if (isLandscape) 12.dp else 20.dp))
 
-                // Métricas
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -207,61 +223,43 @@ fun SessionSummaryDialog(
                         .background(BgRow)
                 ) {
                     MetricRow(
-                        icon = Icons.Filled.Timer,
-                        iconTint = AccentBlue,
-                        label = "Duración",
-                        value = formatDuration(results.durationMs),
-                        unit = "",
-                        compact = isLandscape
+                        icon = Icons.Filled.Timer, iconTint = AccentBlue,
+                        label = "Duración", value = formatDuration(results.durationMs),
+                        unit = "", compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
-                        icon = Icons.Filled.DataArray,
-                        iconTint = AccentPurple,
-                        label = "Muestras",
-                        value = "${results.sampleCount}",
+                        icon = Icons.Filled.DataArray, iconTint = AccentPurple,
+                        label = "Muestras", value = "${results.sampleCount}",
                         unit = "pts · ${"%.1f".format(results.sampleRateHz)} Hz",
                         compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
-                        icon = Icons.Filled.Straighten,
-                        iconTint = AccentOrange,
-                        label = "Distancia",
-                        value = "%.2f".format(results.totalDistanceCm),
-                        unit = results.unit,
-                        compact = isLandscape
+                        icon = Icons.Filled.Straighten, iconTint = AccentOrange,
+                        label = "Distancia", value = "%.2f".format(results.totalDistanceCm),
+                        unit = results.unit, compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
-                        icon = Icons.Filled.ArrowForward,
-                        iconTint = AccentTeal,
-                        label = "Desplazamiento",
-                        value = "%.2f".format(results.displacementCm),
-                        unit = results.unit,
-                        compact = isLandscape
+                        icon = Icons.Filled.ArrowForward, iconTint = AccentTeal,
+                        label = "Desplazamiento", value = "%.2f".format(results.displacementCm),
+                        unit = results.unit, compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
-                        icon = Icons.Filled.Speed,
-                        iconTint = AccentRed,
-                        label = "Velocidad media",
-                        value = "%.2f".format(results.avgSpeedCmS),
-                        unit = "${results.unit}/s",
-                        compact = isLandscape
+                        icon = Icons.Filled.Speed, iconTint = AccentRed,
+                        label = "Velocidad media", value = "%.2f".format(results.avgSpeedCmS),
+                        unit = "${results.unit}/s", compact = isLandscape
                     )
                     RowDivider()
                     MetricRow(
-                        icon = Icons.Filled.TrendingUp,
-                        iconTint = AccentGreen,
-                        label = "Aceleración media",
-                        value = "%.2f".format(results.avgAccelCmS2),
-                        unit = "${results.unit}/s²",
-                        compact = isLandscape
+                        icon = Icons.Filled.TrendingUp, iconTint = AccentGreen,
+                        label = "Aceleración media", value = "%.2f".format(results.avgAccelCmS2),
+                        unit = "${results.unit}/s²", compact = isLandscape
                     )
                 }
 
-                // Advertencia sin calibración
                 if (!results.isCalibrated) {
                     Spacer(Modifier.height(if (isLandscape) 8.dp else 12.dp))
                     Row(
@@ -289,7 +287,6 @@ fun SessionSummaryDialog(
 
                 Spacer(Modifier.height(if (isLandscape) 12.dp else 20.dp))
 
-                // Botones de acción
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -300,9 +297,7 @@ fun SessionSummaryDialog(
                             .weight(1f)
                             .height(if (isLandscape) 40.dp else 48.dp),
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = TextSecondary
-                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
                         border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
                     ) {
                         Text("Reiniciar", fontWeight = FontWeight.Medium)
@@ -312,11 +307,9 @@ fun SessionSummaryDialog(
                         onClick = {
                             focusManager.clearFocus()
                             val finalExperimentName = experimentNameValue.text
-                                .trim()
-                                .ifBlank { "Experimento" }
+                                .trim().ifBlank { "Experimento" }
                             val finalLabel = labelValue.text
-                                .trim()
-                                .ifBlank { results.selectedLabel }
+                                .trim().ifBlank { results.selectedLabel }
                             onSave(finalExperimentName, finalLabel)
                         },
                         modifier = Modifier
@@ -333,6 +326,22 @@ fun SessionSummaryDialog(
     }
 }
 
+/**
+ * Título editable que alterna entre un texto estático con icono de edición y un
+ * [BasicTextField] de una sola línea al ser pulsado.
+ *
+ * Cuando se activa la edición, el campo recibe el foco automáticamente mediante
+ * un [LaunchedEffect]. Al confirmar con la acción IME `Done`, se invoca [onDone]
+ * y se libera el foco.
+ *
+ * @param value          Estado actual del campo de texto.
+ * @param editing        Indica si el campo está en modo edición.
+ * @param focusRequester [FocusRequester] para solicitar el foco al entrar en edición.
+ * @param onStartEdit    Callback invocado al pulsar el título en modo lectura.
+ * @param onValueChange  Callback invocado con el nuevo [TextFieldValue] mientras se escribe.
+ * @param onDone         Callback invocado al confirmar la edición con la tecla IME.
+ * @param isLandscape    Si `true`, reduce el tamaño de fuente para el modo paisaje.
+ */
 @Composable
 private fun EditableTitle(
     value: TextFieldValue,
@@ -385,6 +394,18 @@ private fun EditableTitle(
     }
 }
 
+/**
+ * Fila de métrica que muestra un icono coloreado, una etiqueta descriptiva y
+ * el valor numérico con su unidad alineados horizontalmente.
+ *
+ * @param icon      Icono vectorial que representa la magnitud medida.
+ * @param iconTint  Color de acento aplicado al icono y su fondo circular.
+ * @param label     Nombre de la magnitud mostrado en color secundario.
+ * @param value     Valor numérico formateado como cadena.
+ * @param unit      Unidad de medida; se omite si la cadena está vacía.
+ * @param compact   Si `true`, reduce tamaños de icono, fuentes y padding vertical
+ *                  para el modo paisaje.
+ */
 @Composable
 private fun MetricRow(
     icon: ImageVector,
@@ -394,9 +415,9 @@ private fun MetricRow(
     unit: String,
     compact: Boolean = false
 ) {
-    val iconBoxSize = if (compact) 28.dp else 34.dp
-    val iconSize    = if (compact) 14.dp else 18.dp
-    val vertPad     = if (compact) 8.dp  else 12.dp
+    val iconBoxSize   = if (compact) 28.dp else 34.dp
+    val iconSize      = if (compact) 14.dp else 18.dp
+    val vertPad       = if (compact) 8.dp  else 12.dp
     val valueFontSize = if (compact) 13.sp else 15.sp
     val labelFontSize = if (compact) 12.sp else 13.sp
 
@@ -414,29 +435,20 @@ private fun MetricRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(iconSize)
+                imageVector = icon, contentDescription = null,
+                tint = iconTint, modifier = Modifier.size(iconSize)
             )
         }
         Spacer(Modifier.width(12.dp))
         Text(
-            text = label,
-            color = TextSecondary,
-            fontSize = labelFontSize,
-            modifier = Modifier.weight(1f)
+            text = label, color = TextSecondary,
+            fontSize = labelFontSize, modifier = Modifier.weight(1f)
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(
-                text = value,
-                color = TextPrimary,
-                fontSize = valueFontSize,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = value, color = TextPrimary, fontSize = valueFontSize, fontWeight = FontWeight.Bold)
             if (unit.isNotEmpty()) {
                 Text(text = unit, color = TextSecondary, fontSize = 11.sp)
             }
@@ -444,20 +456,33 @@ private fun MetricRow(
     }
 }
 
+/**
+ * Divisor horizontal con padding lateral usado entre [MetricRow] dentro de la
+ * tarjeta de métricas.
+ */
 @Composable
 private fun RowDivider() {
     HorizontalDivider(
-        modifier = Modifier.padding(horizontal = 14.dp),
+        modifier  = Modifier.padding(horizontal = 14.dp),
         thickness = 0.5.dp,
-        color = DividerColor
+        color     = DividerColor
     )
 }
 
+/**
+ * Formatea una duración en milisegundos a una cadena legible.
+ *
+ * Si la duración supera el minuto, devuelve el formato `M:SS.cc`; de lo
+ * contrario usa `SS.cc s`, donde `cc` son centésimas de segundo.
+ *
+ * @param ms Duración en milisegundos.
+ * @return Cadena formateada, por ejemplo `"1:05.23"` o `"8.04 s"`.
+ */
 private fun formatDuration(ms: Long): String {
     val totalSeconds = ms / 1000
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    val centis = (ms % 1000) / 10
+    val centis  = (ms % 1000) / 10
     return if (minutes > 0) "%d:%02d.%02d".format(minutes, seconds, centis)
     else "%d.%02d s".format(seconds, centis)
 }

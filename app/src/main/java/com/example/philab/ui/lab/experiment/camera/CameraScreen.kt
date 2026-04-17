@@ -35,7 +35,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
 import androidx.compose.ui.text.style.TextAlign
 
-// ── Paleta de la app ──────────────────────────────────────────────────────────
 private val AppGreenPrimary    = Color(0xFF1D9E75)
 private val AppGreenDark       = Color(0xFF2C4A3E)
 private val AppGreenLight      = Color(0xFFB8DDD1)
@@ -44,8 +43,27 @@ private val AppSurface         = Color(0xFFF5F9F7)
 private val AppTextPrimary     = Color(0xFF2C4A3E)
 private val AppTextSecondary   = Color(0xFF4A7A68)
 private val AppTextDisabled    = Color(0xFF8AADA4)
-// ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Pantalla principal de captura de experimentos con la cámara.
+ *
+ * Gestiona el ciclo de vida de la cámara, el detector de objetos y el tracker
+ * mediante [CameraController] y [DetectorManager]. En cada `ON_RESUME` del ciclo
+ * de vida vuelve a vincular la cámara y reinicia el estado del experimento.
+ *
+ * Superpone en capas sobre el visor de cámara:
+ * - [DetectionOverlay]: bounding boxes de los objetos detectados.
+ * - [MeasurementOverlay]: estado de calibración ArUco y contorno del marcador.
+ * - [CameraStatsOverlay]: métricas en tiempo real (FPS, frames, puntos grabados).
+ * - [CameraOverlay]: controles de usuario y panel de configuración.
+ *
+ * Cuando el experimento finaliza, muestra [SessionSummaryDialog] para que el
+ * usuario nombre y guarde la sesión antes de navegar a los resultados.
+ *
+ * @param onBack Callback invocado al pulsar el botón de retroceso.
+ * @param onNavigateToResults Callback invocado tras guardar la sesión correctamente.
+ * @param viewModel ViewModel que gestiona el estado de la pantalla.
+ */
 @Composable
 fun CameraScreen(
     onBack: () -> Unit,
@@ -207,6 +225,23 @@ fun CameraScreen(
     }
 }
 
+/**
+ * Overlay de métricas en tiempo real anclado en la esquina superior derecha.
+ *
+ * Muestra el nombre del modelo activo, el estado del detector con color semántico,
+ * FPS y contador de frames cuando la cámara está activa, y tiempo transcurrido
+ * con contador de puntos grabados y datos de debug del tracker durante la grabación.
+ *
+ * @param fps Fotogramas por segundo del pipeline de análisis.
+ * @param elapsedMs Tiempo transcurrido de la sesión de grabación en milisegundos.
+ * @param totalFrames Número total de frames procesados desde que se activó la cámara.
+ * @param detectorStatus Texto de estado del detector, usado para determinar el color.
+ * @param livePointCount Número de puntos registrados en la sesión activa.
+ * @param isRunning `true` si hay una sesión de grabación en curso.
+ * @param isCameraActive `true` si la cámara está activa y procesando frames.
+ * @param detectorInfo Cadena descriptiva del modelo TFLite cargado.
+ * @param trackingDebugInfo Información de depuración del tracker óptico.
+ */
 @Composable
 private fun BoxScope.CameraStatsOverlay(
     fps: Double,
@@ -267,6 +302,35 @@ private fun BoxScope.CameraStatsOverlay(
     }
 }
 
+/**
+ * Overlay de controles de usuario adaptativo según la orientación del dispositivo.
+ *
+ * En portrait muestra los controles en la parte inferior de la pantalla.
+ * En landscape muestra el panel de configuración a la izquierda con scroll
+ * y los botones de acción a la derecha.
+ *
+ * @param isCameraActive `true` si la cámara está activa.
+ * @param isRunning `true` si hay una sesión de grabación en curso.
+ * @param models Lista de modelos TFLite disponibles para seleccionar.
+ * @param selectedModel Modelo actualmente seleccionado.
+ * @param onSelectModel Callback invocado al seleccionar un nuevo modelo.
+ * @param showConfig `true` si el panel de configuración está visible.
+ * @param onToggleConfig Callback para mostrar u ocultar el panel de configuración.
+ * @param sensitivity Nivel de sensibilidad de detección actual.
+ * @param onSensitivityChange Callback invocado al cambiar la sensibilidad.
+ * @param maxPerFrame Número máximo de detecciones por frame.
+ * @param onMaxPerFrameChange Callback invocado al cambiar el límite por frame.
+ * @param maxPerClass Número máximo de detecciones por clase.
+ * @param onMaxPerClassChange Callback invocado al cambiar el límite por clase.
+ * @param markerSizeCm Tamaño del marcador ArUco en centímetros.
+ * @param onMarkerSizeCmChange Callback invocado al cambiar el tamaño del marcador.
+ * @param onBack Callback invocado al pulsar el botón de retroceso.
+ * @param onToggleCamera Callback para activar o desactivar la cámara.
+ * @param onStartStop Callback para iniciar o detener la grabación.
+ * @param selectedObject Objeto seleccionado actualmente para rastrear, o `null`.
+ * @param onClearSelection Callback para deseleccionar el objeto actual.
+ * @param calibrationState Estado actual de la calibración ArUco.
+ */
 @Composable
 private fun CameraOverlay(
     isCameraActive: Boolean,
@@ -296,23 +360,19 @@ private fun CameraOverlay(
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (isLandscape) {
-            // ── LANDSCAPE: panel izquierdo con scroll + botones a la derecha ──
             Row(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
-                // Panel de config (izquierda, con scroll)
                 if (showConfig) {
                     Card(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(0.92f)
                             .align(Alignment.Bottom),
-                        colors = CardDefaults.cardColors(
-                            containerColor = AppSurface
-                        ),
+                        colors = CardDefaults.cardColors(containerColor = AppSurface),
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, AppGreenLight)
@@ -341,7 +401,6 @@ private fun CameraOverlay(
                     Spacer(Modifier.width(8.dp))
                 }
 
-                // Botones (derecha, siempre visibles)
                 Column(
                     modifier = Modifier
                         .align(Alignment.Bottom)
@@ -401,8 +460,7 @@ private fun CameraOverlay(
                         onClick = onToggleCamera,
                         enabled = !isRunning,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCameraActive) Color(0xFF555577)
-                            else Color(0xFF2B77CB),
+                            containerColor = if (isCameraActive) Color(0xFF555577) else Color(0xFF2B77CB),
                             disabledContainerColor = Color(0xFF797676)
                         ),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
@@ -431,7 +489,6 @@ private fun CameraOverlay(
             }
 
         } else {
-            // ── PORTRAIT: layout original sin cambios ──
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -441,9 +498,7 @@ private fun CameraOverlay(
                 if (showConfig) {
                     Card(
                         modifier = Modifier.fillMaxWidth(0.92f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = AppSurface
-                        ),
+                        colors = CardDefaults.cardColors(containerColor = AppSurface),
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, AppGreenLight)
@@ -567,6 +622,26 @@ private fun CameraOverlay(
     }
 }
 
+/**
+ * Contenido interno del panel de configuración, compartido entre orientaciones.
+ *
+ * Incluye el selector de modelo TFLite, el selector de umbral de confianza,
+ * los sliders de límite de detecciones por frame y por clase, y el slider
+ * del tamaño físico del marcador ArUco.
+ *
+ * @param models Lista de modelos disponibles.
+ * @param selectedModel Modelo actualmente seleccionado.
+ * @param isCameraActive `true` si la cámara está activa; deshabilita el selector de modelo.
+ * @param onSelectModel Callback invocado al seleccionar un nuevo modelo.
+ * @param sensitivity Nivel de sensibilidad de detección actual.
+ * @param onSensitivityChange Callback invocado al cambiar la sensibilidad.
+ * @param maxPerFrame Número máximo de detecciones por frame.
+ * @param onMaxPerFrameChange Callback invocado al cambiar el límite por frame.
+ * @param maxPerClass Número máximo de detecciones por clase.
+ * @param onMaxPerClassChange Callback invocado al cambiar el límite por clase.
+ * @param markerSizeCm Tamaño del marcador ArUco en centímetros.
+ * @param onMarkerSizeCmChange Callback invocado al cambiar el tamaño del marcador.
+ */
 @Composable
 private fun ConfigPanelContent(
     models: List<ModelOption>,
@@ -648,6 +723,17 @@ private fun ConfigPanelContent(
     Spacer(Modifier.height(6.dp))
 }
 
+/**
+ * Dropdown para seleccionar el modelo TFLite activo.
+ *
+ * Se deshabilita mientras la cámara está activa para evitar cambiar el
+ * modelo durante una sesión de detección en curso.
+ *
+ * @param models Lista de modelos disponibles.
+ * @param selectedModel Modelo actualmente seleccionado.
+ * @param enabled `false` si el selector debe estar deshabilitado.
+ * @param onSelect Callback invocado al seleccionar un modelo de la lista.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModelDropdown(
@@ -681,6 +767,13 @@ private fun ModelDropdown(
     }
 }
 
+/**
+ * Icono de información con tooltip emergente al pulsarlo.
+ *
+ * Muestra un [DropdownMenu] con [text] al tocar el icono de ayuda.
+ *
+ * @param text Texto informativo a mostrar en el tooltip.
+ */
 @Composable
 fun InfoTooltip(text: String) {
     var open by remember { mutableStateOf(false) }
@@ -695,6 +788,14 @@ fun InfoTooltip(text: String) {
     }
 }
 
+/**
+ * Fila de chips para seleccionar el nivel de sensibilidad de detección.
+ *
+ * Muestra un [FilterChip] por cada valor de [Sensitivity].
+ *
+ * @param value Nivel de sensibilidad actualmente seleccionado.
+ * @param onChange Callback invocado al seleccionar un nivel diferente.
+ */
 @Composable
 private fun SensitivityRow(value: Sensitivity, onChange: (Sensitivity) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -722,6 +823,16 @@ private fun SensitivityRow(value: Sensitivity, onChange: (Sensitivity) -> Unit) 
     }
 }
 
+/**
+ * Chip de estado con fondo verde cuando está activo y rojo cuando no lo está.
+ *
+ * Si se proporciona [onClick], se renderiza como un [Button] interactivo.
+ * En caso contrario se renderiza como una [Surface] no interactiva.
+ *
+ * @param label Texto a mostrar dentro del chip.
+ * @param active `true` para fondo verde, `false` para fondo rojo.
+ * @param onClick Callback opcional. Si es `null` el chip no es interactivo.
+ */
 @Composable
 private fun StatusChip(label: String, active: Boolean, onClick: (() -> Unit)? = null) {
     val bg = if (active) AppGreenPrimary else Color(0xFF8B0000)
@@ -741,6 +852,12 @@ private fun StatusChip(label: String, active: Boolean, onClick: (() -> Unit)? = 
     }
 }
 
+/**
+ * Formatea una duración en milisegundos al formato `MM:SS:cs`.
+ *
+ * @param ms Duración en milisegundos.
+ * @return Cadena con el formato `mm:ss:cc` donde `cc` son centésimas de segundo.
+ */
 private fun formatElapsed(ms: Long): String {
     val minutes = (ms / 1000) / 60
     val seconds = (ms / 1000) % 60

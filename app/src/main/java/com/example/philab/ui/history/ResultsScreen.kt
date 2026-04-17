@@ -28,7 +28,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Paleta
 private val BgCard        = Color.White.copy(alpha = 0.85f)
 private val BgRowEven     = Color.White.copy(alpha = 0.55f)
 private val BgRowOdd      = Color.White.copy(alpha = 0.40f)
@@ -40,6 +39,21 @@ private val TextSecondary = Color(0xFF7A7A8C)
 private val TextMuted     = Color(0xFFAAAAAC)
 private val DividerColor  = Color(0xFFDDDDE8)
 
+/**
+ * Pantalla que muestra el resumen completo de un experimento finalizado.
+ *
+ * Incluye la información de la sesión, los resultados cinemáticos calculados,
+ * las gráficas de posición, velocidad y aceleración, y una tabla paginada con
+ * los puntos capturados. Si la sesión no tiene calibración ArUco, muestra un
+ * aviso indicando que los valores están en píxeles.
+ *
+ * Cuando los datos superan los 500 puntos, la tabla muestra una muestra
+ * uniforme y sugiere exportar a CSV para acceder a todos los registros.
+ *
+ * @param results Resultados del experimento a mostrar.
+ * @param onBack Callback invocado al pulsar el botón de retroceso.
+ * @param onNavigateHome Callback invocado al pulsar el botón de inicio.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ResultsScreen(
@@ -57,7 +71,6 @@ fun ResultsScreen(
         SimpleDateFormat("dd/MM/yyyy  HH:mm:ss", Locale.getDefault())
     }
 
-    // Calculado una sola vez por sesión
     val motionType = remember(results) { MotionClassifier.classify(results) }
 
     if (showSheet) {
@@ -117,7 +130,6 @@ fun ResultsScreen(
                     contentPadding      = PaddingValues(vertical = 16.dp)
                 ) {
 
-                    // Advertencia sin calibración
                     if (!results.isCalibrated) {
                         item {
                             Row(
@@ -139,7 +151,6 @@ fun ResultsScreen(
                         }
                     }
 
-                    // Información de la sesión
                     item {
                         SectionTitle("Información de la sesión")
                         MetaCard {
@@ -161,7 +172,6 @@ fun ResultsScreen(
                         }
                     }
 
-                    // Resultados cinemáticos — incluye MotionClassifier
                     item {
                         SectionTitle("Resultados cinemáticos")
                         MetaCard {
@@ -177,13 +187,11 @@ fun ResultsScreen(
                         }
                     }
 
-                    // Gráficas
                     item {
                         SectionTitle("Gráficas")
                         ExperimentCharts(results = results)
                     }
 
-                    // Tabla de datos
                     item {
                         SectionTitle("Datos capturados (${results.sampleCount} puntos)")
                     }
@@ -223,7 +231,6 @@ fun ResultsScreen(
                     }
                 }
 
-                // Barra inferior fija
                 Surface(
                     shadowElevation = 8.dp,
                     color           = Color.White.copy(alpha = 0.95f)
@@ -280,8 +287,14 @@ fun ResultsScreen(
     }
 }
 
-// ── Tabla ─────────────────────────────────────────────────────────────────────
-
+/**
+ * Cabecera fija de la tabla de datos capturados.
+ *
+ * Muestra las columnas `#`, `t (s)`, `x (unit)` e `y (unit)` con
+ * esquinas superiores redondeadas para integrarse visualmente con las filas.
+ *
+ * @param unit Unidad de medida del experimento, mostrada en las columnas `x` e `y`.
+ */
 @Composable
 private fun TableHeader(unit: String) {
     Row(
@@ -298,6 +311,19 @@ private fun TableHeader(unit: String) {
     }
 }
 
+/**
+ * Fila de datos de la tabla de puntos capturados.
+ *
+ * Alterna el color de fondo según [isEven] y aplica esquinas inferiores
+ * redondeadas en la última fila para cerrar visualmente la tabla.
+ *
+ * @param index Número de fila mostrado en la primera columna.
+ * @param t Tiempo en segundos del punto.
+ * @param x Posición horizontal en la unidad del experimento.
+ * @param y Posición vertical en la unidad del experimento.
+ * @param isEven `true` si la fila ocupa una posición par, para alternar el fondo.
+ * @param isLast `true` si es la última fila de la tabla.
+ */
 @Composable
 private fun TableRow(
     index: Int, t: Float, x: Float, y: Float,
@@ -321,6 +347,17 @@ private fun TableRow(
     }
 }
 
+/**
+ * Celda individual de la tabla de datos.
+ *
+ * Aplica peso de columna, alineación centrada y estilo diferenciado para
+ * cabeceras y filas de datos.
+ *
+ * @param text Contenido textual de la celda.
+ * @param weight Peso relativo de la columna dentro del [Row] padre.
+ * @param header `true` si la celda pertenece a la fila de cabecera.
+ * @param color Color del texto para celdas de datos. Ignorado si [header] es `true`.
+ */
 @Composable
 private fun RowScope.TableCell(
     text: String,
@@ -338,8 +375,11 @@ private fun RowScope.TableCell(
     )
 }
 
-// ── Componentes reutilizables ─────────────────────────────────────────────────
-
+/**
+ * Título de sección con estilo de etiqueta en mayúsculas y espaciado de letras.
+ *
+ * @param text Texto a mostrar como título de sección.
+ */
 @Composable
 private fun SectionTitle(text: String) {
     Text(
@@ -352,6 +392,11 @@ private fun SectionTitle(text: String) {
     )
 }
 
+/**
+ * Tarjeta contenedora con fondo semitransparente usada para agrupar filas de metadatos.
+ *
+ * @param content Contenido composable a mostrar dentro de la tarjeta.
+ */
 @Composable
 private fun MetaCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
@@ -367,6 +412,13 @@ private fun MetaCard(content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
+/**
+ * Fila de metadato con etiqueta a la izquierda y valor a la derecha.
+ *
+ * @param label Nombre del campo mostrado en el lado izquierdo.
+ * @param value Valor del campo mostrado en el lado derecho.
+ * @param valueMaxLines Número máximo de líneas permitidas para el texto del valor.
+ */
 @Composable
 private fun MetaRow(label: String, value: String, valueMaxLines: Int = 1) {
     Row(
@@ -395,11 +447,23 @@ private fun MetaRow(label: String, value: String, valueMaxLines: Int = 1) {
     }
 }
 
+/**
+ * Divisor horizontal fino usado entre filas dentro de un [MetaCard].
+ */
 @Composable
 private fun ColumnScope.RowDivider() {
     HorizontalDivider(thickness = 0.5.dp, color = DividerColor)
 }
 
+/**
+ * Formatea una duración en milisegundos a una cadena legible.
+ *
+ * Si la duración supera un minuto devuelve el formato `m:ss.cs`.
+ * En caso contrario devuelve `ss.cs s`.
+ *
+ * @param ms Duración en milisegundos.
+ * @return Cadena formateada con la duración.
+ */
 private fun formatDuration(ms: Long): String {
     val s  = ms / 1000
     val m  = s / 60

@@ -45,7 +45,6 @@ import com.patrykandpatrick.vico.core.component.shape.Shapes
 import com.patrykandpatrick.vico.core.marker.MarkerLabelFormatter
 import java.util.Locale
 
-// Paleta
 private val BgCard        = Color.White.copy(alpha = 0.85f)
 private val AccentGreen   = Color(0xFF1D9E75)
 private val AccentBlue    = Color(0xFF2196F3)
@@ -54,14 +53,27 @@ private val TextSecondary = Color(0xFF7A7A8C)
 private val TextMuted     = Color(0xFFAAAAAC)
 private val DividerColor  = Color(0xFFDDDDE8)
 
-// ── Enum de pestañas ──────────────────────────────────────────────────────────
+/**
+ * Pestañas disponibles en la vista de gráficas del experimento.
+ *
+ * @property label Texto visible en el chip de selección.
+ * @property emoji Icono decorativo que acompaña al label.
+ * @property color Color de acento asociado a la serie en la gráfica.
+ */
 private enum class GraphTab(val label: String, val emoji: String, val color: Color) {
     POSITION("Posición",    "📍", AccentGreen),
     VELOCITY("Velocidad",   "⚡", AccentBlue),
     ACCEL   ("Aceleración", "🚀", AccentOrange)
 }
 
-// Estadísticas de una serie
+/**
+ * Estadísticas descriptivas de una serie de datos `(tiempo, valor)`.
+ *
+ * @property mean Media aritmética de los valores.
+ * @property min Valor mínimo de la serie.
+ * @property max Valor máximo de la serie.
+ * @property error Semirango `(max - min) / 2`, usado como estimación de incertidumbre.
+ */
 private data class SeriesStats(
     val mean:  Float,
     val min:   Float,
@@ -69,6 +81,12 @@ private data class SeriesStats(
     val error: Float
 ) {
     companion object {
+        /**
+         * Calcula las estadísticas de una serie de pares `(tiempo, valor)`.
+         *
+         * @param series Lista de puntos de la serie.
+         * @return [SeriesStats] calculadas, o `null` si la serie está vacía.
+         */
         fun from(series: List<Pair<Float, Float>>): SeriesStats? {
             if (series.isEmpty()) return null
             val values = series.map { it.second }
@@ -80,6 +98,29 @@ private data class SeriesStats(
     }
 }
 
+/**
+ * Estado interno que encapsula todos los datos precalculados listos para renderizar
+ * las tres gráficas cinemáticas.
+ *
+ * Se construye en un coroutine de fondo para no bloquear el hilo principal.
+ *
+ * @property data [ChartData] resultado del pipeline cinemático.
+ * @property posProducer Productor de entradas Vico para la serie de posición.
+ * @property velProducer Productor de entradas Vico para la serie de velocidad.
+ * @property accelProducer Productor de entradas Vico para la serie de aceleración.
+ * @property posTimeMap Mapa de índice de entrada a tiempo real en segundos para posición.
+ * @property velTimeMap Mapa de índice de entrada a tiempo real en segundos para velocidad.
+ * @property accelTimeMap Mapa de índice de entrada a tiempo real en segundos para aceleración.
+ * @property posMinY Límite inferior del eje Y para la gráfica de posición.
+ * @property posMaxY Límite superior del eje Y para la gráfica de posición.
+ * @property velMinY Límite inferior del eje Y para la gráfica de velocidad.
+ * @property velMaxY Límite superior del eje Y para la gráfica de velocidad.
+ * @property accelMinY Límite inferior del eje Y para la gráfica de aceleración.
+ * @property accelMaxY Límite superior del eje Y para la gráfica de aceleración.
+ * @property posStats Estadísticas descriptivas de la serie de posición, o `null` si está vacía.
+ * @property velStats Estadísticas descriptivas de la serie de velocidad, o `null` si está vacía.
+ * @property accelStats Estadísticas descriptivas de la serie de aceleración, o `null` si está vacía.
+ */
 private class ReadyChartState(
     val data: ChartData,
     val posProducer:   ChartEntryModelProducer,
@@ -96,7 +137,12 @@ private class ReadyChartState(
     val accelStats: SeriesStats?,
 )
 
-// rango
+/**
+ * Calcula el rango Y de una serie añadiendo un padding del 12 % a cada lado.
+ *
+ * @receiver Lista de pares `(tiempo, valor)`.
+ * @return Par `(mínimo con padding, máximo con padding)`.
+ */
 private fun List<Pair<Float, Float>>.yRange(): Pair<Float, Float> {
     if (isEmpty()) return 0f to 1f
     val values = map { it.second }
@@ -107,10 +153,16 @@ private fun List<Pair<Float, Float>>.yRange(): Pair<Float, Float> {
 }
 
 /**
- * Expande el rango [min, max] alrededor de su centro por [factor].
- *   factor = 1.0  → rango sin cambio (vista normal)
- *   factor = 5.0  → rango ×5, la curva se ve muy aplastada
- * El centro del rango se mantiene fijo, por lo que la curva queda centrada.
+ * Expande el rango `[min, max]` alrededor de su centro por [factor], manteniendo
+ * el centro fijo para que la curva quede centrada visualmente.
+ *
+ * Un factor de `1.0` no modifica el rango. Un factor de `5.0` produce un rango
+ * cinco veces mayor, haciendo que la curva aparezca aplastada.
+ *
+ * @param min Límite inferior original del rango.
+ * @param max Límite superior original del rango.
+ * @param factor Factor de expansión.
+ * @return Par `(nuevo mínimo, nuevo máximo)`.
  */
 private fun expandYRange(min: Float, max: Float, factor: Float): Pair<Float, Float> {
     val center    = (min + max) / 2f
@@ -118,6 +170,20 @@ private fun expandYRange(min: Float, max: Float, factor: Float): Pair<Float, Flo
     return (center - halfRange) to (center + halfRange)
 }
 
+/**
+ * Composable principal que muestra las gráficas cinemáticas de un experimento.
+ *
+ * Ejecuta el [KinematicPipeline] en un coroutine de fondo al recibir nuevos [results]
+ * y muestra un indicador de progreso mientras los datos se procesan. Una vez listos,
+ * presenta tres pestañas (posición, velocidad, aceleración) con su gráfica Vico,
+ * estadísticas descriptivas y un slider de zoom vertical.
+ *
+ * Si los resultados corresponden al experimento de demostración integrado, los datos
+ * de la gráfica se generan analíticamente en lugar de pasar por el pipeline.
+ *
+ * @param results Resultados de la sesión de experimento a visualizar.
+ * @param modifier Modificador opcional de Compose aplicado al contenedor raíz.
+ */
 @Composable
 fun ExperimentCharts(
     results: ExperimentResults,
@@ -351,15 +417,18 @@ fun ExperimentCharts(
     }
 }
 
-
 /**
- * Slider que amplía el rango Y para ver la curva "de lejos" (zoom-out vertical).
+ * Slider que permite hacer zoom-out vertical sobre la gráfica activa.
  *
- *  1×  → vista normal (rango original con padding)
- * 10×  → rango ×10, la curva queda muy aplastada en el centro
+ * Un factor de `1×` muestra el rango original con padding. Un factor de `10×`
+ * expande el rango diez veces, aplastando la curva hacia el centro.
+ * Solo se muestra cuando el rango Y está fijado, es decir, con datos reales
+ * y no con el modo demo en autoescala.
  *
- * Solo se muestra cuando el rango Y está fijado (datos reales, no demo
- * en modo auto-escala).
+ * @param scaleFactor Factor de escala vertical actual, en el rango `[1, 10]`.
+ * @param onScaleChange Callback invocado cuando el usuario mueve el slider.
+ * @param accentColor Color de acento del slider, sincronizado con la pestaña activa.
+ * @param modifier Modificador opcional de Compose.
  */
 @Composable
 private fun YScaleSlider(
@@ -387,7 +456,7 @@ private fun YScaleSlider(
             value         = scaleFactor,
             onValueChange = onScaleChange,
             valueRange    = 1f..10f,
-            steps         = 17,   // 18 pasos - incrementos de 0.5×
+            steps         = 17,
             colors        = SliderDefaults.colors(
                 thumbColor         = accentColor,
                 activeTrackColor   = accentColor,
@@ -409,8 +478,17 @@ private fun YScaleSlider(
     }
 }
 
-// Fila de estadísticas
-
+/**
+ * Fila de estadísticas descriptivas para la serie activa.
+ *
+ * Muestra el valor medio con su semirango como incertidumbre y el rango completo
+ * `[min, max]` de la serie, usando el símbolo cinemático correspondiente a [unit].
+ *
+ * @param stats Estadísticas de la serie activa.
+ * @param unit Unidad de medida con la que se etiquetan los valores.
+ * @param accentColor Color de acento para el texto principal.
+ * @param modifier Modificador opcional de Compose.
+ */
 @Composable
 private fun SeriesStatsRow(
     stats:       SeriesStats,
@@ -459,8 +537,16 @@ private fun SeriesStatsRow(
     }
 }
 
-// Series del demo
-
+/**
+ * Genera un [ChartData] analítico para el experimento de demostración integrado.
+ *
+ * Simula un movimiento uniformemente acelerado con velocidad inicial [v0] y
+ * aceleración constante [a] durante [n] fotogramas a 23 fps, produciendo
+ * series perfectamente suaves sin necesidad de pasar por el pipeline.
+ *
+ * @param results Resultados originales, usados únicamente para obtener la unidad de medida.
+ * @return [ChartData] con las series de posición, velocidad y aceleración generadas analíticamente.
+ */
 private fun buildDemoChartData(results: ExperimentResults): ChartData {
     val dt = 1f / 23f
     val v0 = 8.63f
@@ -492,8 +578,13 @@ private fun buildDemoChartData(results: ExperimentResults): ChartData {
     )
 }
 
-// Formatter eje X
-
+/**
+ * Crea y recuerda un [AxisValueFormatter] para el eje X que traduce índices de entrada
+ * a tiempos reales en segundos usando [timeMap].
+ *
+ * @param timeMap Mapa de índice de entrada Vico a tiempo en segundos.
+ * @return Formateador listo para usar en el eje inferior de Vico.
+ */
 @Composable
 private fun rememberTimeFormatter(
     timeMap: Map<Int, Float>
@@ -506,20 +597,41 @@ private fun rememberTimeFormatter(
     }
 }
 
+/**
+ * Convierte una serie de pares `(tiempo, valor)` en entradas Vico indexadas.
+ *
+ * Si la lista está vacía devuelve una entrada ficticia en el origen para
+ * evitar que Vico falle con un modelo vacío.
+ */
 private fun List<Pair<Float, Float>>.safeEntries() =
     if (isEmpty()) listOf(entryOf(0f, 0f))
     else mapIndexed { index, (_, value) ->
         entryOf(index.toFloat(), value.safeY())
     }
 
+/**
+ * Construye un mapa de índice de entrada Vico a tiempo real en segundos.
+ */
 private fun List<Pair<Float, Float>>.timeMap(): Map<Int, Float> =
     mapIndexed { index, (tSec, _) -> index to tSec }.toMap()
 
+/**
+ * Devuelve el valor si es finito, o `0f` como fallback para evitar que Vico
+ * renderice entradas con `NaN` o infinito.
+ */
 private fun Float.safeY(): Float =
     if (isFinite()) this else 0f
 
-// Chip
-
+/**
+ * Chip de selección de pestaña para las gráficas cinemáticas.
+ *
+ * Anima el color de fondo y del texto al cambiar el estado de selección.
+ *
+ * @param tab Pestaña que representa este chip.
+ * @param selected `true` si esta pestaña está actualmente seleccionada.
+ * @param onClick Callback invocado al pulsar el chip.
+ * @param modifier Modificador opcional de Compose.
+ */
 @Composable
 private fun GraphTabChip(
     tab:      GraphTab,
@@ -556,8 +668,21 @@ private fun GraphTabChip(
     }
 }
 
-// Gráfica Vico
-
+/**
+ * Composable que renderiza una gráfica de línea usando la librería Vico.
+ *
+ * Configura el estilo visual de la línea, el gradiente de relleno, los ejes,
+ * el marcador interactivo con etiqueta de valor y el rango Y fijo opcional.
+ *
+ * @param producer [ChartEntryModelProducer] con los datos de la serie a graficar.
+ * @param lineColor Color principal de la línea y el marcador.
+ * @param gradientTop Color superior del gradiente de relleno bajo la línea.
+ * @param gradientBottom Color inferior del gradiente de relleno bajo la línea.
+ * @param xFormatter Formateador para las etiquetas del eje X.
+ * @param yUnit Unidad de medida mostrada en el marcador al tocar un punto.
+ * @param fixedMinY Límite inferior fijo del eje Y, o `null` para autoescala.
+ * @param fixedMaxY Límite superior fijo del eje Y, o `null` para autoescala.
+ */
 @Composable
 private fun VicoLineChart(
     producer:       ChartEntryModelProducer,

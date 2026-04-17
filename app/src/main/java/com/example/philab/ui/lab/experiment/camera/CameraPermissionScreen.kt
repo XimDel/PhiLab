@@ -37,6 +37,23 @@ import com.example.philab.ui.theme.PhiLabTheme
 import com.example.philab.ui.theme.Poppins
 import com.example.philab.ui.theme.AppDrawables
 
+/**
+ * Pantalla que gestiona el flujo de solicitud del permiso de cámara.
+ *
+ * Comprueba el estado del permiso en el momento de composición, escucha el ciclo de
+ * vida para revalidarlo al volver desde Ajustes del sistema, y delega la presentación
+ * visual en [CameraPermissionContent].
+ *
+ * El flujo implementado es el siguiente:
+ * - Si el permiso ya está concedido, invoca [onPermissionGranted] inmediatamente.
+ * - Si el permiso no ha sido solicitado aún, muestra el botón "Dar permiso".
+ * - Si el usuario denegó el permiso y marcó "No volver a preguntar", muestra el
+ *   botón "Ir a Ajustes" que abre la pantalla de permisos de la app en el sistema.
+ * - Al volver desde Ajustes con el permiso concedido, navega automáticamente.
+ *
+ * @param onPermissionGranted Callback invocado cuando el permiso de cámara está disponible.
+ * @param onBack              Callback invocado al pulsar el botón de retroceso.
+ */
 @Composable
 fun CameraPermissionScreen(
     onPermissionGranted: () -> Unit,
@@ -51,17 +68,12 @@ fun CameraPermissionScreen(
                 PackageManager.PERMISSION_GRANTED
 
     var hasCameraPermission by remember { mutableStateOf(checkPermission()) }
-
-    // Para saber si ya le pedimos el permiso al usuario al menos una vez
     var askedOnce by rememberSaveable { mutableStateOf(false) }
-
-    // Se activa cuando el usuario negó el permiso y marcó "Don't ask again"
     var shouldGoToSettings by remember { mutableStateOf(false) }
 
     fun updateSettingsFlag(permissionGranted: Boolean) {
         val showRationale = ActivityCompat.shouldShowRequestPermissionRationale(
-            activity,
-            Manifest.permission.CAMERA
+            activity, Manifest.permission.CAMERA
         )
         shouldGoToSettings = !permissionGranted && askedOnce && !showRationale
     }
@@ -72,11 +84,9 @@ fun CameraPermissionScreen(
         askedOnce = true
         hasCameraPermission = granted
         updateSettingsFlag(granted)
-        // Si concedió, navega a la cámara
         if (granted) onPermissionGranted()
     }
 
-    // Revalidar permiso cuando vuelve desde Ajustes
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -90,25 +100,38 @@ fun CameraPermissionScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Si ya tiene permiso desde el inicio, navega de una
     LaunchedEffect(hasCameraPermission) {
         if (hasCameraPermission) onPermissionGranted()
     }
 
-    // Si NO hay permiso, mostramos UI
     if (!hasCameraPermission) {
         CameraPermissionContent(
-            showGoToSettings = shouldGoToSettings,
+            showGoToSettings    = shouldGoToSettings,
             onRequestPermission = {
                 askedOnce = true
                 permissionLauncher.launch(Manifest.permission.CAMERA)
             },
             onOpenSettings = { openAppSettings(context) },
-            onBack = onBack
+            onBack         = onBack
         )
     }
 }
 
+/**
+ * Contenido visual de la pantalla de permiso de cámara.
+ *
+ * Muestra un icono de cámara, un mensaje explicativo y uno de dos botones de acción
+ * según si el usuario debe ser dirigido a los Ajustes del sistema o puede solicitar
+ * el permiso directamente desde la app.
+ *
+ * @param showGoToSettings    Si `true`, muestra el botón "Ir a Ajustes" en lugar de
+ *                            "Dar permiso".
+ * @param onRequestPermission Callback para lanzar el diálogo del sistema de solicitud
+ *                            de permiso.
+ * @param onOpenSettings      Callback para abrir la pantalla de permisos de la app en
+ *                            los Ajustes del sistema.
+ * @param onBack              Callback invocado al pulsar "Volver".
+ */
 @Composable
 private fun CameraPermissionContent(
     showGoToSettings: Boolean,
@@ -161,7 +184,7 @@ private fun CameraPermissionContent(
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF5061C7),
-                        contentColor = Color(0xFFFFFFFF)
+                        contentColor   = Color(0xFFFFFFFF)
                     )
                 ) {
                     Text(
@@ -177,7 +200,7 @@ private fun CameraPermissionContent(
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF5061C7),
-                        contentColor = Color(0xFFFFFFFF)
+                        contentColor   = Color(0xFFFFFFFF)
                     )
                 ) {
                     Text(
@@ -196,20 +219,21 @@ private fun CameraPermissionContent(
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White.copy(alpha = 0.55f),
-                    contentColor = Color.Black
+                    contentColor   = Color.Black
                 )
             ) {
-                Text(
-                    text = "Volver",
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = Poppins
-                )
+                Text(text = "Volver", fontWeight = FontWeight.SemiBold, fontFamily = Poppins)
             }
         }
     }
 }
 
-// Abre la pantalla de Ajustes de la app para habilitar permisos manualmente.
+/**
+ * Abre la pantalla de permisos de la aplicación en los Ajustes del sistema,
+ * permitiendo al usuario conceder manualmente el permiso de cámara.
+ *
+ * @param context Contexto usado para construir y lanzar el [Intent].
+ */
 private fun openAppSettings(context: Context) {
     val intent = Intent(
         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -218,7 +242,12 @@ private fun openAppSettings(context: Context) {
     context.startActivity(intent)
 }
 
-// Obtiene el Activity desde un Context de Compose (LocalContext).
+/**
+ * Recorre la cadena de [ContextWrapper] hasta encontrar el [Activity] subyacente.
+ *
+ * @return El [Activity] que contiene este contexto.
+ * @throws IllegalStateException si no se encuentra ningún [Activity] en la cadena.
+ */
 private fun Context.findActivity(): Activity {
     var current = this
     while (current is ContextWrapper) {
@@ -233,10 +262,10 @@ private fun Context.findActivity(): Activity {
 private fun CameraPermissionPreview_Request() {
     PhiLabTheme {
         CameraPermissionContent(
-            showGoToSettings = false,
+            showGoToSettings    = false,
             onRequestPermission = {},
-            onOpenSettings = {},
-            onBack = {}
+            onOpenSettings      = {},
+            onBack              = {}
         )
     }
 }
@@ -246,10 +275,10 @@ private fun CameraPermissionPreview_Request() {
 private fun CameraPermissionPreview_Settings() {
     PhiLabTheme {
         CameraPermissionContent(
-            showGoToSettings = true,
+            showGoToSettings    = true,
             onRequestPermission = {},
-            onOpenSettings = {},
-            onBack = {}
+            onOpenSettings      = {},
+            onBack              = {}
         )
     }
 }

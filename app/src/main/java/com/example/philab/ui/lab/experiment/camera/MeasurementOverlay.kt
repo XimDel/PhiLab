@@ -24,17 +24,23 @@ import java.util.Locale
 import kotlin.math.max
 
 /**
- * Composable que dibuja sobre el visor de cámara la información del estado de calibración
- * y, cuando está calibrado, el contorno del marcador ArUco detectado.
+ * Overlay de calibración ArUco dibujado sobre el preview de cámara.
  *
- * Superpone un panel de texto en la esquina superior izquierda con el estado actual,
- * y dibuja las aristas y vértices del marcador escalados al tamaño del componente.
+ * Superpone dos elementos visuales:
+ * - Un panel de texto en la esquina superior izquierda con el estado actual de
+ *   la calibración (calibrado, buscando o error), con colores codificados por estado.
+ * - Cuando el estado es [CalibrationState.Calibrated] con exactamente 4 esquinas
+ *   detectadas, dibuja el contorno del marcador ArUco como cuatro segmentos azules
+ *   con vértices amarillos, mapeados al espacio de pantalla mediante la misma
+ *   transformación `fit-center` que usa CameraX.
  *
- * @param calibrationState Estado actual de la calibración. Si es [CalibrationState.Idle],
- *   el overlay no renderiza ningún contenido.
- * @param viewSize Tamaño en píxeles del componente que contiene la vista de cámara,
- *   usado para mapear las coordenadas del bitmap al espacio de pantalla.
- * @param modifier Modificador opcional de Compose aplicado al contenedor raíz.
+ * Si el estado es [CalibrationState.Idle], el composable renderiza un [Box] vacío
+ * sin ningún contenido visible.
+ *
+ * @param calibrationState Estado actual de la calibración ArUco.
+ * @param viewSize         Tamaño en píxeles del componente de preview en pantalla,
+ *                         necesario para escalar las coordenadas del bitmap.
+ * @param modifier         Modificador opcional aplicado al contenedor raíz.
  */
 @Composable
 fun MeasurementOverlay(
@@ -64,7 +70,7 @@ fun MeasurementOverlay(
                 val dstW = viewSize.width.toFloat()
                 val dstH = viewSize.height.toFloat()
 
-                val scale = max(dstW / srcW, dstH / srcH)
+                val scale   = max(dstW / srcW, dstH / srcH)
                 val scaledW = srcW * scale
                 val scaledH = srcH * scale
                 val dx = (dstW - scaledW) / 2f
@@ -75,26 +81,10 @@ fun MeasurementOverlay(
 
                 val mapped = corners.map { Offset(mapX(it.x), mapY(it.y)) }
 
-                drawLine(
-                    color = Color.Blue,
-                    start = mapped[0], end = mapped[1],
-                    strokeWidth = 4f, cap = StrokeCap.Round
-                )
-                drawLine(
-                    color = Color.Blue,
-                    start = mapped[1], end = mapped[2],
-                    strokeWidth = 4f, cap = StrokeCap.Round
-                )
-                drawLine(
-                    color = Color.Blue,
-                    start = mapped[2], end = mapped[3],
-                    strokeWidth = 4f, cap = StrokeCap.Round
-                )
-                drawLine(
-                    color = Color.Blue,
-                    start = mapped[3], end = mapped[0],
-                    strokeWidth = 4f, cap = StrokeCap.Round
-                )
+                drawLine(Color.Blue, mapped[0], mapped[1], strokeWidth = 4f, cap = StrokeCap.Round)
+                drawLine(Color.Blue, mapped[1], mapped[2], strokeWidth = 4f, cap = StrokeCap.Round)
+                drawLine(Color.Blue, mapped[2], mapped[3], strokeWidth = 4f, cap = StrokeCap.Round)
+                drawLine(Color.Blue, mapped[3], mapped[0], strokeWidth = 4f, cap = StrokeCap.Round)
 
                 mapped.forEach { corner ->
                     drawCircle(color = Color.Yellow, radius = 6f, center = corner)
@@ -130,46 +120,37 @@ fun MeasurementOverlay(
 }
 
 /**
- * Construye la lista de líneas de texto a mostrar en el panel de estado
- * según el [calibrationState] actual.
+ * Construye la lista de líneas de texto para el panel de estado del overlay
+ * según el [calibrationState] recibido.
  *
  * @param calibrationState Estado actual de la calibración.
- * @return Lista de cadenas de texto para renderizar en el overlay.
+ * @return Lista de cadenas a renderizar en el panel; vacía si el estado es [CalibrationState.Idle].
  */
 private fun buildLines(calibrationState: CalibrationState): List<String> {
     return when (calibrationState) {
-        is CalibrationState.Idle -> emptyList()
-
-        is CalibrationState.Searching -> listOf(
-            "ArUco: No detectado",
-            "Medición en Pixeles"
-        )
-
+        is CalibrationState.Idle      -> emptyList()
+        is CalibrationState.Searching -> listOf("ArUco: No detectado", "Medición en Pixeles")
         is CalibrationState.Calibrated -> listOf(
             "Estado: Calibrado",
             "Escala: ${formatScale(calibrationState.cmPerPx)} cm/px",
             "Marcador: ${formatMarker(calibrationState.markerSizeCm)} cm"
         )
-
-        is CalibrationState.Error -> listOf(
-            "ArUco: Error",
-            calibrationState.message
-        )
+        is CalibrationState.Error -> listOf("ArUco: Error", calibrationState.message)
     }
 }
 
 /**
- * Formatea un valor de escala [value] en cm/px con tres decimales.
+ * Formatea un factor de escala en cm/px con tres decimales y separador de punto.
  *
  * @param value Factor de escala a formatear.
- * @return Cadena con el valor formateado usando punto como separador decimal.
+ * @return Cadena formateada, p. ej. `"0.053"`.
  */
 private fun formatScale(value: Float) = String.format(Locale.US, "%.3f", value)
 
 /**
- * Formatea un tamaño de marcador [value] en centímetros con un decimal.
+ * Formatea un tamaño de marcador en centímetros con un decimal y separador de punto.
  *
  * @param value Tamaño en centímetros a formatear.
- * @return Cadena con el valor formateado usando punto como separador decimal.
+ * @return Cadena formateada, p. ej. `"5.0"`.
  */
 private fun formatMarker(value: Float) = String.format(Locale.US, "%.1f", value)
