@@ -25,6 +25,20 @@ import com.example.philab.data.repository.TipsRepository
 import com.example.philab.ui.theme.Poppins
 import com.example.philab.ui.theme.AppDrawables
 
+/**
+ * Pantalla de recomendaciones previas al experimento.
+ *
+ * Muestra una serie de instrucciones o consejos cargados desde el repositorio
+ * que el usuario debe revisar antes de iniciar el experimento.
+ *
+ * Incluye:
+ * - Botón de retroceso.
+ * - Contenido desplazable con recomendaciones.
+ * - Botón para continuar hacia el experimento.
+ *
+ * @param onBack Acción ejecutada al regresar a la pantalla anterior.
+ * @param onStartExperiment Acción para continuar hacia el experimento.
+ */
 @Composable
 fun PreExperimentTipsScreen(
     onBack: () -> Unit,
@@ -166,6 +180,9 @@ fun PreExperimentTipsScreen(
     }
 }
 
+/**
+ * Vista previa de la pantalla de recomendaciones previas.
+ */
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 private fun PreExperimentTipsScreenPreview() {
