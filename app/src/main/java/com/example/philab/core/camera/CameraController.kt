@@ -84,6 +84,7 @@ class CameraController(
         onTrackedDetection: (UiDetection?) -> Unit,
         sessionRecorder: SessionRecorder,
         onTrackingDebug: (String) -> Unit,
+        targetLabelProvider: () -> String?,
     ) {
         if (isBound) return
 
@@ -120,7 +121,8 @@ class CameraController(
                             maxPerFrameProvider = maxPerFrameProvider,
                             selectedCenterProvider = selectedCenterProvider,
                             onTrackedDetection = onTrackedDetection,
-                            sessionRecorder = sessionRecorder
+                            sessionRecorder = sessionRecorder,
+                            targetLabelProvider = targetLabelProvider,
                         )
                     )
                 }

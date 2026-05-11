@@ -352,6 +352,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
      *
      * @param value Nuevo estado de calibración emitido por el [FrameAnalyzer].
      */
+
+    /** Cambia la etiqueta objetivo del filtro de clase. null = sin filtro (todas las clases). */
+    fun updateTargetLabel(value: String?)        { targetLabel = value }
     fun updateCalibrationState(value: CalibrationState) {
         if (!isCameraActive && value !is CalibrationState.Idle) return
         calibrationState = value

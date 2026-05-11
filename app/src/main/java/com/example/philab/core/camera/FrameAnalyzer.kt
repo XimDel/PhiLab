@@ -84,7 +84,8 @@ class FrameAnalyzer(
     private val detectionEveryNFrames: Int = 8,
     private val selectedCenterProvider: () -> Pair<Float, Float>?,
     private val onTrackedDetection: (UiDetection?) -> Unit,
-    private val sessionRecorder: SessionRecorder
+    private val sessionRecorder: SessionRecorder,
+    private val targetLabelProvider: () -> String?,
 ) : ImageAnalysis.Analyzer {
     private var windowStartNs = 0L
     private var framesInWindow = 0
@@ -151,6 +152,20 @@ class FrameAnalyzer(
     private var lastTrackingDebug = ""
 
     /**
+     * Devuelve true si la detección coincide con la clase objetivo activa,
+     * o si no hay filtro configurado (targetLabelProvider devuelve null).
+     *
+     * Se usa en los tres puntos críticos donde el tracker puede "saltar" a otro objeto:
+     * 1. Al reiniciar el tracker con pendingDetection.
+     * 2. En closestDetectionToTracked() para el fallback.
+     * 3. En launchDetection() para filtrar el raw antes de emitir.
+     */
+    private fun UiDetection.matchesTarget(): Boolean {
+        val target = targetLabelProvider() ?: return true
+        return label.equals(target, ignoreCase = true)
+    }
+
+    /**
      * Punto de entrada del pipeline de análisis. Invocado por CameraX para cada frame capturado.
      *
      * Ejecuta el pipeline completo: conversión de imagen, tracking, detección asíncrona,
@@ -182,7 +197,8 @@ class FrameAnalyzer(
                     pendingDetection = null
                     latestAllDetections = pending.allDetections
 
-                    if (!opticalFlowTracker.isActive() && !grayMat.empty()) {
+                    if (!opticalFlowTracker.isActive() && !grayMat.empty()
+                        && pending.detection.matchesTarget()) {
                         val cvBox = pending.detection.toCvRect(grayMat.cols(), grayMat.rows())
                         opticalFlowTracker.init(grayMat, cvBox)
                         bboxKalman.reset()
@@ -226,12 +242,14 @@ class FrameAnalyzer(
                     fun closestDetectionToTracked(): UiDetection? {
                         val refX = lastTrackedCenter?.first ?: selectedCenter.first
                         val refY = lastTrackedCenter?.second ?: selectedCenter.second
-                        return latestAllDetections.minByOrNull { d ->
-                            val cx = (d.left + d.right) / 2f
-                            val cy = (d.top + d.bottom) / 2f
-                            val dx = cx - refX; val dy = cy - refY
-                            dx * dx + dy * dy
-                        }
+                        return latestAllDetections
+                            .filter { it.matchesTarget() }
+                            .minByOrNull { d ->
+                                val cx = (d.left + d.right) / 2f
+                                val cy = (d.top + d.bottom) / 2f
+                                val dx = cx - refX; val dy = cy - refY
+                                dx * dx + dy * dy
+                            }
                     }
 
                     val ofResult = if (opticalFlowTracker.isActive()) {
@@ -443,6 +461,7 @@ class FrameAnalyzer(
                     .flatMap { (_, list) -> list.sortedByDescending { it.score }.take(maxPClass) }
                     .sortedByDescending { it.score }
                     .take(maxPFrame)
+                    .filter { it.matchesTarget() }
 
                 val best = if (refCenter != null) {
                     val (refX, refY) = refCenter

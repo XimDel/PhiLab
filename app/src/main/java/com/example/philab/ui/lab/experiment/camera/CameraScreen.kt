@@ -119,7 +119,8 @@ fun CameraScreen(
                     selectedCenterProvider = { viewModel.selectedObject?.let { it.centerX to it.centerY } },
                     onTrackedDetection    = viewModel::updateTrackedDetection,
                     sessionRecorder       = viewModel.sessionRecorder,
-                    onTrackingDebug       = viewModel::updateTrackingDebugInfo
+                    onTrackingDebug       = viewModel::updateTrackingDebugInfo,
+                    targetLabelProvider    = { viewModel.targetLabel },
                 )
             }
         }
@@ -197,7 +198,9 @@ fun CameraScreen(
             onStartStop = viewModel::toggleRunning,
             selectedObject = viewModel.selectedObject,
             onClearSelection = viewModel::clearSelectedObject,
-            calibrationState = viewModel.calibrationState
+            calibrationState = viewModel.calibrationState,
+            targetLabel         = viewModel.targetLabel,
+            onTargetLabelChange = viewModel::updateTargetLabel
         )
 
         viewModel.experimentResults?.let { results ->
@@ -353,7 +356,9 @@ private fun CameraOverlay(
     onStartStop: () -> Unit,
     selectedObject: SelectedObject?,
     onClearSelection: () -> Unit,
-    calibrationState: CalibrationState
+    calibrationState: CalibrationState,
+    targetLabel: String?,
+    onTargetLabelChange: (String?) -> Unit
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -394,7 +399,9 @@ private fun CameraOverlay(
                                 maxPerClass = maxPerClass,
                                 onMaxPerClassChange = onMaxPerClassChange,
                                 markerSizeCm = markerSizeCm,
-                                onMarkerSizeCmChange = onMarkerSizeCmChange
+                                onMarkerSizeCmChange = onMarkerSizeCmChange,
+                                targetLabel         = targetLabel,
+                                onTargetLabelChange = onTargetLabelChange
                             )
                         }
                     }
@@ -517,7 +524,9 @@ private fun CameraOverlay(
                                 maxPerClass = maxPerClass,
                                 onMaxPerClassChange = onMaxPerClassChange,
                                 markerSizeCm = markerSizeCm,
-                                onMarkerSizeCmChange = onMarkerSizeCmChange
+                                onMarkerSizeCmChange = onMarkerSizeCmChange,
+                                targetLabel = targetLabel,
+                                onTargetLabelChange = onTargetLabelChange
                             )
                         }
                     }
@@ -655,7 +664,9 @@ private fun ConfigPanelContent(
     maxPerClass: Int,
     onMaxPerClassChange: (Int) -> Unit,
     markerSizeCm: Float,
-    onMarkerSizeCmChange: (Float) -> Unit
+    onMarkerSizeCmChange: (Float) -> Unit,
+    targetLabel: String?,
+    onTargetLabelChange: (String?) -> Unit
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("Modelo", color = AppTextPrimary, fontWeight = FontWeight.Medium)
@@ -688,18 +699,26 @@ private fun ConfigPanelContent(
         )
     )
     Spacer(Modifier.height(10.dp))
-    Text("Máx. por clase: $maxPerClass", color = AppTextPrimary)
+
+    val isClassLocked = targetLabel != null
+    Text(
+        "Máx. por clase: $maxPerClass",
+        color = if (isClassLocked) AppTextDisabled else AppTextPrimary
+    )
     Slider(
         value = maxPerClass.toFloat(),
-        onValueChange = { onMaxPerClassChange(it.toInt().coerceIn(1, 10)) },
+        onValueChange = { if (!isClassLocked) onMaxPerClassChange(it.toInt().coerceIn(1, 10)) },
         valueRange = 1f..10f,
         steps = 8,
+        enabled = !isClassLocked,
         colors = SliderDefaults.colors(
-            thumbColor = AppGreenPrimary,
-            activeTrackColor = AppGreenPrimary,
+            thumbColor        = if (isClassLocked) AppTextDisabled else AppGreenPrimary,
+            activeTrackColor  = if (isClassLocked) AppTextDisabled else AppGreenPrimary,
             inactiveTrackColor = AppGreenLight,
-            activeTickColor = Color.White,
-            inactiveTickColor = AppGreenPrimary,
+            activeTickColor   = Color.White,
+            inactiveTickColor = if (isClassLocked) AppTextDisabled else AppGreenPrimary,
+            disabledThumbColor       = AppTextDisabled,
+            disabledActiveTrackColor = AppGreenLight,
         )
     )
     Spacer(Modifier.height(10.dp))
@@ -720,6 +739,39 @@ private fun ConfigPanelContent(
             inactiveTickColor = AppGreenPrimary,
         )
     )
+    Spacer(Modifier.height(10.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Clase objetivo", color = AppTextPrimary, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(6.dp))
+        InfoTooltip("'Pelota' ignora personas, mesas y otros objetos. Solo trackea sports ball.")
+    }
+    Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(
+            null          to "Todos",
+            "sports ball" to "Pelota",
+        ).forEach { (value, chipLabel) ->
+            FilterChip(
+                selected = (targetLabel == value),
+                onClick  = { onTargetLabelChange(value) },
+                label    = { Text(chipLabel) },
+                colors   = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppGreenPrimary,
+                    selectedLabelColor     = Color.White,
+                    containerColor         = AppGreenExtraLight,
+                    labelColor             = AppTextSecondary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled             = true,
+                    selected            = (targetLabel == value),
+                    selectedBorderColor = AppGreenPrimary,
+                    selectedBorderWidth = 0.dp,
+                    borderColor         = AppGreenLight,
+                    borderWidth         = 1.dp
+                )
+            )
+        }
+    }
     Spacer(Modifier.height(6.dp))
 }
 
