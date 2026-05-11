@@ -315,7 +315,7 @@ class OpticalFlowTracker {
      * @return Cadena descriptiva de la estrategia aplicada y la cantidad de puntos cargados.
      */
     private fun loadFeaturesDetailed(gray: Mat, bbox: Rect): String {
-        val roi = Mat(gray, bbox)
+        val roi = Mat(gray, bbox).clone()
         cornersRaw.release()
         var shiTomasiCount = 0
         try {
@@ -344,7 +344,7 @@ class OpticalFlowTracker {
             (bbox.width + 2 * expandX).coerceAtMost(gray.cols() - (bbox.x - expandX).coerceAtLeast(0)),
             (bbox.height + 2 * expandY).coerceAtMost(gray.rows() - (bbox.y - expandY).coerceAtLeast(0))
         )
-        val roiRing = Mat(gray, ringBbox)
+        val roiRing = Mat(gray, ringBbox).clone()
         cornersRaw.release()
         var ringCount = 0
         try {

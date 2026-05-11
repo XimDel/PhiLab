@@ -178,6 +178,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     var isSaving by mutableStateOf(false)
         private set
 
+    /** Etiqueta objetivo del filtro de clase. null = detectar todas las clases. */
+    var targetLabel by mutableStateOf<String?>("sports ball")
+        private set
+
     private var timerJob: Job? = null
 
     /**

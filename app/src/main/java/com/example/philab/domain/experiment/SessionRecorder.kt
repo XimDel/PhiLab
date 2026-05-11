@@ -1,6 +1,7 @@
 package com.example.philab.domain.experiment
 
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
@@ -108,17 +109,26 @@ class SessionRecorder {
 
         var distanciaTotal = 0f
         for (i in 1 until points.size) {
-            distanciaTotal += abs(points[i].xCm - points[i - 1].xCm)
+            val dx = points[i].xCm - points[i - 1].xCm
+            val dy = points[i].yCm - points[i - 1].yCm
+            distanciaTotal += kotlin.math.sqrt(dx * dx + dy * dy)
         }
 
-        val desplazamiento = points.last().xCm - points.first().xCm
-        val velocidadMedia = if (durationS > 0) desplazamiento / durationS else 0f
+        val dxNet = points.last().xCm - points.first().xCm
+        val dyNet = points.last().yCm - points.first().yCm
+        val desplazamiento = kotlin.math.sqrt(dxNet * dxNet + dyNet * dyNet)
+        val velocidadMedia = if (durationS > 0) distanciaTotal / durationS else 0f
 
         val aceleracionMedia = if (points.size >= 3) {
             val dt0 = (points[1].tMs - points[0].tMs) / 1000f
             val dt1 = (points.last().tMs - points[points.size - 2].tMs) / 1000f
-            val vInicial = if (dt0 > 0) (points[1].xCm - points[0].xCm) / dt0 else 0f
-            val vFinal   = if (dt1 > 0) (points.last().xCm - points[points.size - 2].xCm) / dt1 else 0f
+            val vInicial = if (dt0 > 0) kotlin.math.sqrt(
+                (points[1].xCm - points[0].xCm).pow(2) + (points[1].yCm - points[0].yCm).pow(2)
+            ) / dt0 else 0f
+            val vFinal = if (dt1 > 0) kotlin.math.sqrt(
+                (points.last().xCm - points[points.size-2].xCm).pow(2) +
+                        (points.last().yCm - points[points.size-2].yCm).pow(2)
+            ) / dt1 else 0f
             if (durationS > 0) (vFinal - vInicial) / durationS else 0f
         } else 0f
 
