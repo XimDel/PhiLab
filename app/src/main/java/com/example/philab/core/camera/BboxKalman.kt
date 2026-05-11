@@ -10,34 +10,60 @@ import org.opencv.video.KalmanFilter
 /**
  * Aplica un filtro de Kalman para suavizar y predecir la posición de un bounding box.
  *
- * Internamente maneja 8 valores: las 4 coordenadas del rectángulo
- * (left, top, right, bottom) y la velocidad de cada una (vl, vt, vr, vb).
- * Se usan las coordenadas, que vienen de las detecciones.
+ * Internamente maneja 8 variables de estado: las 4 coordenadas del rectángulo
+ * (left, top, right, bottom) y la velocidad de cada una (vL, vT, vR, vB).
+ * Usa un modelo de velocidad constante donde cada posición se actualiza
+ * sumando su velocidad correspondiente en cada timestep.
  *
- * Cuando el objeto deja de detectarse (por ejemplo, se oculta), el filtro no se detiene:
- * en vez de actualizar con nuevas mediciones, predice dónde debería estar.
- * Esto permite mantener el seguimiento por varios frames consecutivos
- * (hasta `MAX_FRAMES_LOST`) sin perder completamente el objeto.
+ * El filtro opera en dos modos:
+ * - **Con medición** ([update]): cuando el detector TFLite produce una detección,
+ *   el filtro ejecuta predict → correct, combinando la predicción del modelo
+ *   con la medición real para producir una estimación suavizada.
+ * - **Sin medición** ([predict]): cuando no hay detección nueva (frames entre
+ *   inferencias o pérdida temporal del objeto), el filtro predice la posición
+ *   extrapolando con la velocidad estimada. Aplica un factor de decaimiento
+ *   sobre la velocidad para evitar que el bbox se desplace indefinidamente.
+ *   Si se superan [MAX_FRAMES_LOST] frames sin medición, el filtro se reinicia.
+ *
+ * Calibración de ruido:
+ * - Ruido de proceso bajo en posiciones, mayor en velocidades: permite que
+ *   el modelo se adapte a cambios de velocidad sin que las posiciones oscilen.
+ * - Ruido de medición moderado-alto: absorbe el jitter típico del detector
+ *   TFLite (~5-15px por frame) en vez de seguirlo fielmente.
+ *
+ * Todos los métodos públicos son `@Synchronized` para evitar race conditions
+ * entre el hilo de análisis de CameraX y callbacks de la UI.
  */
 class BboxKalman {
+
     private var kf: KalmanFilter? = null
     private var initialized = false
     private var framesLost = 0
 
-    /** Número máximo de fotogramas consecutivos sin medición antes de reiniciar el filtro. */
-    val MAX_FRAMES_LOST = 15
+    /**
+     * Número máximo de fotogramas consecutivos sin medición antes de reiniciar el filtro.
+     */
+    val MAX_FRAMES_LOST = 8
+
+    private val processNoise = 0.08f
+    private val velocityNoise = 0.32f
+    private val measurementNoise = 4.0f
+    private val velocityDecay = 0.85f
 
     /**
-     * Devuelve la instancia del filtro de Kalman, creándola y configurándola si aún no existe.
+     * Devuelve la instancia de [KalmanFilter] existente o crea y configura una nueva.
      *
-     * Configura las matrices de transición, medición, ruido de proceso, ruido de medición
-     * y covarianza de error inicial con valores por defecto.
-     *
-     * @return Instancia de [KalmanFilter] lista para usar.
+     * La configuración incluye:
+     * - Matriz de transición con modelo de velocidad constante (posición += velocidad).
+     * - Matriz de medición que observa únicamente las cuatro coordenadas posicionales.
+     * - Covarianza de proceso diferenciada entre posiciones ([processNoise]) y velocidades ([velocityNoise]).
+     * - Covarianza de medición escalar ([measurementNoise]) aplicada a la identidad 4×4.
+     * - Covarianza de error inicial con alta incertidumbre (escalar 10.0) sobre la identidad 8×8.
      */
     private fun getOrCreateKf(): KalmanFilter {
         kf?.let { return it }
         val newKf = KalmanFilter(8, 4, 0, CvType.CV_32F)
+
         val tm = Mat.eye(8, 8, CvType.CV_32F)
         tm.put(0, 4, floatArrayOf(1f))
         tm.put(1, 5, floatArrayOf(1f))
@@ -45,6 +71,7 @@ class BboxKalman {
         tm.put(3, 7, floatArrayOf(1f))
         newKf.set_transitionMatrix(tm)
         tm.release()
+
         val mm = Mat.zeros(4, 8, CvType.CV_32F)
         mm.put(0, 0, floatArrayOf(1f))
         mm.put(1, 1, floatArrayOf(1f))
@@ -52,31 +79,44 @@ class BboxKalman {
         mm.put(3, 3, floatArrayOf(1f))
         newKf.set_measurementMatrix(mm)
         mm.release()
-        val pnc = Mat.eye(8, 8, CvType.CV_32F)
-        Core.setIdentity(pnc, Scalar(1.0))
+
+        val pnc = Mat.zeros(8, 8, CvType.CV_32F)
+        pnc.put(0, 0, floatArrayOf(processNoise))
+        pnc.put(1, 1, floatArrayOf(processNoise))
+        pnc.put(2, 2, floatArrayOf(processNoise))
+        pnc.put(3, 3, floatArrayOf(processNoise))
+        pnc.put(4, 4, floatArrayOf(velocityNoise))
+        pnc.put(5, 5, floatArrayOf(velocityNoise))
+        pnc.put(6, 6, floatArrayOf(velocityNoise))
+        pnc.put(7, 7, floatArrayOf(velocityNoise))
         newKf.set_processNoiseCov(pnc)
         pnc.release()
+
         val mnc = Mat.eye(4, 4, CvType.CV_32F)
-        Core.setIdentity(mnc, Scalar(0.1))
+        Core.setIdentity(mnc, Scalar(measurementNoise.toDouble()))
         newKf.set_measurementNoiseCov(mnc)
         mnc.release()
+
         val ecp = Mat.eye(8, 8, CvType.CV_32F)
-        Core.setIdentity(ecp, Scalar(1.0))
+        Core.setIdentity(ecp, Scalar(10.0))
         newKf.set_errorCovPost(ecp)
         ecp.release()
+
         kf = newKf
         return newKf
     }
 
     /**
-     * Incorpora una medición válida al filtro y devuelve el bbox corregido.
+     * Incorpora una medición válida al filtro y devuelve el bounding box corregido.
      *
-     * Si el filtro no estaba inicializado, inicializa el estado con las coordenadas
-     * del [bbox] recibido y velocidades en cero. Luego ejecuta el ciclo predict-correct.
+     * Si el filtro aún no ha sido inicializado, inicializa el vector de estado con las
+     * coordenadas del [bbox] recibido y velocidad cero. Reinicia el contador de
+     * fotogramas perdidos a cero.
      *
-     * @param bbox Bounding box medido por el detector o tracker en este fotograma.
-     * @return Bounding box suavizado tras la corrección del filtro.
+     * @param bbox Rectángulo medido por el detector en coordenadas de imagen.
+     * @return Rectángulo corregido por el filtro de Kalman.
      */
+    @Synchronized
     fun update(bbox: Rect): Rect {
         framesLost = 0
         val filter = getOrCreateKf()
@@ -102,13 +142,17 @@ class BboxKalman {
     }
 
     /**
-     * Predice la posición del objeto durante un fotograma de oclusión sin medición.
+     * Predice la posición del bounding box sin incorporar ninguna medición.
      *
      * Incrementa el contador de fotogramas perdidos. Si supera [MAX_FRAMES_LOST],
-     * reinicia el filtro y devuelve `null`.
+     * invoca [reset] y devuelve `null`. De lo contrario, ejecuta la predicción del
+     * filtro y aplica [velocityDecay] a los componentes de velocidad del estado
+     * posterior para limitar la divergencia en ausencia de observaciones.
      *
-     * @return Bounding box predicho, o `null` si se superó el límite de fotogramas perdidos.
+     * @return Rectángulo predicho, o `null` si el filtro no está inicializado o se
+     *         superó el número máximo de fotogramas sin medición.
      */
+    @Synchronized
     fun predict(): Rect? {
         if (!initialized) return null
         framesLost++
@@ -116,15 +160,25 @@ class BboxKalman {
             reset()
             return null
         }
-        return getOrCreateKf().predict().toRect()
+        val filter = getOrCreateKf()
+        val predicted = filter.predict()
+
+        val state = filter.get_statePost()
+        if (state.rows() >= 8) {
+            for (i in 4..7) {
+                val v = state.get(i, 0)[0].toFloat()
+                state.put(i, 0, floatArrayOf(v * velocityDecay))
+            }
+            filter.set_statePost(state)
+        }
+
+        return predicted.toRect()
     }
 
     /**
-     * Reinicia el filtro descartando el estado acumulado.
-     *
-     * Tras esta llamada [isInitialized] devuelve `false` y el filtro queda listo
-     * para una nueva medición inicial en [update].
+     * Reinicia el filtro a su estado inicial, descartando toda estimación previa.
      */
+    @Synchronized
     fun reset() {
         initialized = false
         framesLost = 0
@@ -132,20 +186,23 @@ class BboxKalman {
     }
 
     /**
-     * Indica si el filtro fue inicializado con al menos una medición válida.
+     * Indica si el filtro ha recibido al menos una medición y está listo para operar.
      *
-     * @return `true` si se ha llamado a [update] al menos una vez desde el último [reset].
+     * @return `true` si el filtro está inicializado, `false` en caso contrario.
      */
+    @Synchronized
     fun isInitialized() = initialized
 
     /**
-     * Convierte el vector de estado del filtro en un [Rect] de Android.
+     * Número de fotogramas consecutivos transcurridos sin recibir una medición válida.
+     */
+    val consecutiveFramesLost: Int get() = framesLost
+
+    /**
+     * Convierte este [Mat] de estado (columna 0, filas 0–3) a un [Rect] de Android.
      *
-     * Garantiza que las coordenadas sean no negativas y que `right > left + 4`
-     * y `bottom > top + 4` para evitar bounding boxes degenerados.
-     *
-     * @receiver Mat de estado del filtro con al menos 4 filas.
-     * @return [Rect] con las coordenadas extraídas del estado del filtro.
+     * Los valores negativos se elevan a 0. El lado derecho e inferior se elevan al
+     * menos a `x + 4` y `y + 4` respectivamente para garantizar un rectángulo no degenerado.
      */
     private fun Mat.toRect(): Rect {
         val x = get(0, 0)[0].toInt().coerceAtLeast(0)
