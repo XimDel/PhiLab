@@ -24,16 +24,17 @@ import java.util.Locale
 /**
  * Exportador de resultados de experimentos a formato PDF.
  *
- * Esta clase se encarga de construir un documento PDF completo a partir de los
- * resultados de un experimento, incluyendo información de sesión, métricas
- * cinemáticas, gráficas y tabla de datos.
+ * Construye un documento PDF completo a partir de los resultados de un experimento,
+ * incluyendo información de sesión, métricas cinemáticas, gráficas y tabla de datos.
+ *
+ * Las gráficas se generan con [KinematicPipeline] (limpieza y suavizado visual),
+ * pero los valores de resumen sobre cada gráfica se toman directamente de
+ * [ExperimentResults] para garantizar consistencia con la app y el CSV exportado.
  */
 object PdfExporter {
 
     /**
      * Opciones de configuración para personalizar el contenido del PDF generado.
-     *
-     * Permite habilitar o deshabilitar secciones específicas del reporte.
      */
     data class PdfOptions(
         val includeFecha: Boolean      = true,
@@ -72,38 +73,52 @@ object PdfExporter {
     private val FONT_NORMAL = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
 
     /**
-     * Estadísticas básicas de una serie de datos.
-     *
-     * @property mean valor promedio
-     * @property min valor mínimo
-     * @property max valor máximo
-     * @property error error estimado (semirango)
+     * Incertidumbre calculada a partir de los puntos crudos del experimento.
      */
-    private data class SeriesStats(
-        val mean:  Float,
-        val min:   Float,
-        val max:   Float,
-        val error: Float
+    private data class UncertaintyStats(
+        val positionStd: Float,
+        val speedStd: Float,
+        val accelStd: Float
     )
 
     /**
-     * Calcula estadísticas básicas de una serie temporal.
-     *
-     * @param series lista de pares (tiempo, valor)
-     * @return estadísticas calculadas o null si la serie está vacía
+     * Calcula la incertidumbre a partir de los puntos crudos.
+     * Misma lógica que ExperimentCharts.computeUncertainty().
      */
-    private fun seriesStats(series: List<Pair<Float, Float>>): SeriesStats? {
-        if (series.isEmpty()) return null
-        val values = series.map { it.second }
-        val mean   = values.average().toFloat()
-        val min    = values.minOrNull() ?: return null
-        val max    = values.maxOrNull() ?: return null
-        return SeriesStats(mean = mean, min = min, max = max, error = (max - min) / 2f)
+    private fun computeUncertainty(results: ExperimentResults): UncertaintyStats {
+        val pts = results.points
+        if (pts.size < 3) return UncertaintyStats(0f, 0f, 0f)
+
+        val distances = mutableListOf<Float>()
+        val speeds = mutableListOf<Float>()
+
+        for (i in 1 until pts.size) {
+            val dx = pts[i].xCm - pts[i - 1].xCm
+            val dy = pts[i].yCm - pts[i - 1].yCm
+            val dist = kotlin.math.sqrt(dx * dx + dy * dy)
+            val dt = (pts[i].tMs - pts[i - 1].tMs) / 1000f
+            distances.add(dist)
+            if (dt > 0.005f) speeds.add(dist / dt)
+        }
+
+        val posStd = stdDev(distances)
+        val velStd = stdDev(speeds)
+
+        val durationS = (pts.last().tMs - pts.first().tMs) / 1000f
+        val accelStd = if (durationS > 0f) {
+            kotlin.math.sqrt(2f) * velStd / durationS
+        } else 0f
+
+        return UncertaintyStats(posStd, velStd, accelStd)
     }
 
-    /**
-     * Determina si los resultados corresponden a un conjunto de datos de demostración.
-     */
+    private fun stdDev(values: List<Float>): Float {
+        if (values.size < 2) return 0f
+        val mean = values.average().toFloat()
+        val variance = values.map { (it - mean) * (it - mean) }.average().toFloat()
+        return kotlin.math.sqrt(variance)
+    }
+
     private fun isDemo(results: ExperimentResults): Boolean =
         results.selectedLabel == "pelota"
                 && results.sampleCount == 71
@@ -111,12 +126,6 @@ object PdfExporter {
 
     /**
      * Genera y guarda un archivo PDF en la carpeta de descargas del dispositivo.
-     *
-     * @param context contexto de Android
-     * @param results resultados del experimento
-     * @param options opciones de exportación
-     * @param fileName nombre del archivo (opcional)
-     * @return true si se guardó correctamente, false en caso de error
      */
     fun saveToDownloads(
         context: Context,
@@ -138,9 +147,6 @@ object PdfExporter {
         }
     }
 
-    /**
-     * Construye un nombre de archivo basado en la fecha y el objeto analizado.
-     */
     internal fun buildFileName(results: ExperimentResults): String {
         val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
             .format(Date(results.recordedAt))
@@ -153,6 +159,10 @@ object PdfExporter {
 
     /**
      * Construye el contenido completo del documento PDF.
+     *
+     * Los valores de resumen sobre cada gráfica (x=, v=, a=) se toman de
+     * [ExperimentResults] con incertidumbre calculada por [computeUncertainty],
+     * garantizando consistencia con la app.
      */
     private fun buildDocument(
         doc: PdfDocument,
@@ -209,6 +219,8 @@ object PdfExporter {
                 )
             ).chart
 
+            val uncertainty = computeUncertainty(results)
+
             renderer.drawSectionTitle("GRÁFICAS")
 
             renderer.drawChart(
@@ -216,7 +228,7 @@ object PdfExporter {
                 points    = chart.position,
                 yLabel    = unit,
                 lineColor = COL_LINE_POS,
-                stats     = seriesStats(chart.position)
+                summaryLine = "x = ${"%.2f".format(results.totalDistanceCm)} ± ${"%.2f".format(uncertainty.positionStd)} $unit"
             )
 
             renderer.drawChart(
@@ -224,7 +236,7 @@ object PdfExporter {
                 points    = chart.velocity,
                 yLabel    = "$unit/s",
                 lineColor = COL_LINE_VEL,
-                stats     = seriesStats(chart.velocity)
+                summaryLine = "v = ${"%.2f".format(results.avgSpeedCmS)} ± ${"%.2f".format(uncertainty.speedStd)} $unit/s"
             )
 
             renderer.drawChart(
@@ -232,7 +244,7 @@ object PdfExporter {
                 points    = chart.acceleration,
                 yLabel    = "$unit/s²",
                 lineColor = COL_LINE_ACCEL,
-                stats     = seriesStats(chart.acceleration)
+                summaryLine = "a = ${"%.2f".format(results.avgAccelCmS2)} ± ${"%.2f".format(uncertainty.accelStd)} $unit/s²"
             )
         }
 
@@ -257,8 +269,6 @@ object PdfExporter {
 
     /**
      * Clase interna encargada de renderizar el contenido visual del PDF.
-     *
-     * Maneja la paginación, estilos, gráficos, tablas y layout general.
      */
     private class PageRenderer(private val doc: PdfDocument) {
         private var page: PdfDocument.Page = newPage()
@@ -269,9 +279,6 @@ object PdfExporter {
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COL_TEXT }
         private val rectPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        /**
-         * Crea una nueva página dentro del documento.
-         */
         private fun newPage(): PdfDocument.Page {
             val info = PdfDocument.PageInfo.Builder(
                 PAGE_W.toInt(), PAGE_H.toInt(), doc.pages.size + 1
@@ -279,10 +286,6 @@ object PdfExporter {
             return doc.startPage(info)
         }
 
-        /**
-         * Verifica si hay espacio suficiente en la página actual,
-         * y en caso contrario crea una nueva página.
-         */
         private fun ensureSpace(needed: Float) {
             if (cursorY + needed > PAGE_H - MARGIN - 20f) {
                 drawFooter()
@@ -296,17 +299,11 @@ object PdfExporter {
 
         fun finishPage() { doc.finishPage(page) }
 
-        /**
-         * Dibuja el fondo de la página.
-         */
         fun drawPageBackground() {
             bgPaint.color = COL_BG_PAGE
             canvas.drawRect(0f, 0f, PAGE_W, PAGE_H, bgPaint)
         }
 
-        /**
-         * Dibuja el encabezado principal del documento.
-         */
         fun drawAppHeader(date: String) {
             bgPaint.color = COL_BG_HEADER
             canvas.drawRect(0f, 0f, PAGE_W, 80f, bgPaint)
@@ -330,9 +327,6 @@ object PdfExporter {
             cursorY = 100f
         }
 
-        /**
-         * Dibuja el título de la sección.
-         */
         fun drawSectionTitle(title: String) {
             ensureSpace(28f)
             textPaint.apply { typeface = FONT_BOLD; textSize = 9f; color = COL_ACCENT }
@@ -342,9 +336,6 @@ object PdfExporter {
             cursorY += 26f
         }
 
-        /**
-         * Dibuja una tarjeta con pares clave-valor.
-         */
         fun drawKeyValueCard(rows: List<Pair<String, String>>) {
             val rowH   = 22f
             val totalH = rows.size * rowH + 8f
@@ -380,9 +371,6 @@ object PdfExporter {
             cursorY += totalH + 12f
         }
 
-        /**
-         * Dibuja una grilla de indicadores clave-valor.
-         */
         fun drawKpiGrid(kpis: List<Triple<String, String, Int>>) {
             val colW  = CONTENT_W / 2f - 6f
             val cardH = 52f
@@ -413,25 +401,32 @@ object PdfExporter {
         }
 
         /**
-         * Dibuja un gráfico en el documento PDF.
+         * Dibuja una gráfica con una línea de resumen tomada de [ExperimentResults].
+         *
+         * @param title Título de la gráfica.
+         * @param points Datos de la serie procesados por el pipeline (solo para dibujar).
+         * @param yLabel Unidad del eje Y.
+         * @param lineColor Color de la línea.
+         * @param summaryLine Texto de resumen (e.g. "v = 4.16 ± 2.31 cm/s") tomado
+         *   de ExperimentResults, no del pipeline.
          */
         fun drawChart(
-            title:     String,
-            points:    List<Pair<Float, Float>>,
-            yLabel:    String,
+            title: String,
+            points: List<Pair<Float, Float>>,
+            yLabel: String,
             lineColor: Int,
-            stats:     SeriesStats? = null
+            summaryLine: String? = null
         ) {
             val chartH = 120f
-            val statsH = if (stats != null) 34f else 0f
-            ensureSpace(chartH + 50f + statsH)
+            val summaryH = if (summaryLine != null) 20f else 0f
+            ensureSpace(chartH + 50f + summaryH)
 
             textPaint.apply { typeface = FONT_BOLD; textSize = 8f; color = COL_TEXT_SEC }
             canvas.drawText(title, MARGIN, cursorY + 10f, textPaint)
             cursorY += 16f
 
             if (points.size < 2) {
-                cursorY += chartH + 14f + statsH
+                cursorY += chartH + 14f + summaryH
                 return
             }
 
@@ -526,23 +521,9 @@ object PdfExporter {
 
             cursorY += chartH + 22f
 
-            if (stats != null) {
-                val sym = when {
-                    yLabel.contains("s²") || yLabel.contains("s2") -> "a"
-                    yLabel.contains("/s")                           -> "v"
-                    else                                            -> "x"
-                }
-                val meanFmt  = "%.2f".format(stats.mean)
-                val errorFmt = "%.2f".format(stats.error)
-                val minFmt   = "%.2f".format(stats.min)
-                val maxFmt   = "%.2f".format(stats.max)
-
-                val valueLine = "$sym = $meanFmt ± $errorFmt $yLabel"
-                val rangeLine = "Rango: [$minFmt, $maxFmt] $yLabel"
-
+            if (summaryLine != null) {
                 val divPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color       = COL_DIVIDER
-                    strokeWidth = 0.5f
+                    color = COL_DIVIDER; strokeWidth = 0.5f
                 }
                 canvas.drawLine(MARGIN + 4f, cursorY, MARGIN + CONTENT_W - 4f, cursorY, divPaint)
                 cursorY += 6f
@@ -553,22 +534,11 @@ object PdfExporter {
                     color     = lineColor
                     textAlign = Paint.Align.LEFT
                 }
-                canvas.drawText(valueLine, MARGIN + 8f, cursorY + 9f, textPaint)
-                cursorY += 13f
-
-                textPaint.apply {
-                    typeface = FONT_NORMAL
-                    textSize = 8f
-                    color    = COL_TEXT_SEC
-                }
-                canvas.drawText(rangeLine, MARGIN + 8f, cursorY + 9f, textPaint)
-                cursorY += 16f
+                canvas.drawText(summaryLine, MARGIN + 8f, cursorY + 9f, textPaint)
+                cursorY += 18f
             }
         }
 
-        /**
-         * Dibuja una tabla en el documento PDF.
-         */
         fun drawTable(headers: List<String>, rows: List<List<String>>) {
             val colW    = CONTENT_W / headers.size
             val rowH    = 18f
@@ -623,9 +593,6 @@ object PdfExporter {
             cursorY += 14f
         }
 
-        /**
-         * Dibuja el pie de página del documento.
-         */
         fun drawFooter() {
             val footerY = PAGE_H - 20f
             bgPaint.color = COL_DIVIDER
@@ -646,9 +613,6 @@ object PdfExporter {
         }
     }
 
-    /**
-     * Abre un flujo de salida hacia la carpeta de descargas del dispositivo.
-     */
     private fun openOutputStream(context: Context, fileName: String): OutputStream? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
@@ -672,9 +636,6 @@ object PdfExporter {
         }
     }
 
-    /**
-     * Abre un flujo de salida hacia la carpeta de descargas del dispositivo.
-     */
     private fun formatDuration(ms: Long): String {
         val s = ms / 1000; val m = s / 60
         val sc = s % 60;   val cs = (ms % 1000) / 10
