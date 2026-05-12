@@ -33,6 +33,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.text.style.TextAlign
 
 private val AppGreenPrimary    = Color(0xFF1D9E75)
@@ -243,7 +244,7 @@ fun CameraScreen(
  * @param isRunning `true` si hay una sesión de grabación en curso.
  * @param isCameraActive `true` si la cámara está activa y procesando frames.
  * @param detectorInfo Cadena descriptiva del modelo TFLite cargado.
- * @param trackingDebugInfo Información de depuración del tracker óptico.
+ * @param trackingDebugInfo Información de depuración del tracker.
  */
 @Composable
 private fun BoxScope.CameraStatsOverlay(
@@ -308,31 +309,13 @@ private fun BoxScope.CameraStatsOverlay(
 /**
  * Overlay de controles de usuario adaptativo según la orientación del dispositivo.
  *
- * En portrait muestra los controles en la parte inferior de la pantalla.
- * En landscape muestra el panel de configuración a la izquierda con scroll
- * y los botones de acción a la derecha.
+ * Tanto en portrait como en landscape los controles se ubican en la parte inferior
+ * de la pantalla. En landscape el panel de configuración se muestra como un card
+ * con scroll encima de los controles, y los botones/chips usan tamaños más compactos
+ * para aprovechar el espacio horizontal.
  *
- * @param isCameraActive `true` si la cámara está activa.
- * @param isRunning `true` si hay una sesión de grabación en curso.
- * @param models Lista de modelos TFLite disponibles para seleccionar.
- * @param selectedModel Modelo actualmente seleccionado.
- * @param onSelectModel Callback invocado al seleccionar un nuevo modelo.
- * @param showConfig `true` si el panel de configuración está visible.
- * @param onToggleConfig Callback para mostrar u ocultar el panel de configuración.
- * @param sensitivity Nivel de sensibilidad de detección actual.
- * @param onSensitivityChange Callback invocado al cambiar la sensibilidad.
- * @param maxPerFrame Número máximo de detecciones por frame.
- * @param onMaxPerFrameChange Callback invocado al cambiar el límite por frame.
- * @param maxPerClass Número máximo de detecciones por clase.
- * @param onMaxPerClassChange Callback invocado al cambiar el límite por clase.
- * @param markerSizeCm Tamaño del marcador ArUco en centímetros.
- * @param onMarkerSizeCmChange Callback invocado al cambiar el tamaño del marcador.
- * @param onBack Callback invocado al pulsar el botón de retroceso.
- * @param onToggleCamera Callback para activar o desactivar la cámara.
- * @param onStartStop Callback para iniciar o detener la grabación.
- * @param selectedObject Objeto seleccionado actualmente para rastrear, o `null`.
- * @param onClearSelection Callback para deseleccionar el objeto actual.
- * @param calibrationState Estado actual de la calibración ArUco.
+ * Orden de elementos en la fila inferior:
+ * ← (volver) | ⚙️ (config) | Calibrar/Detectar | chips de estado | Iniciar/Detener
  */
 @Composable
 private fun CameraOverlay(
@@ -365,18 +348,17 @@ private fun CameraOverlay(
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (isLandscape) {
-            Row(
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Bottom
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 4.dp, start = 12.dp, end = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (showConfig) {
                     Card(
                         modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(0.92f)
-                            .align(Alignment.Bottom),
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp),
                         colors = CardDefaults.cardColors(containerColor = AppSurface),
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -400,56 +382,42 @@ private fun CameraOverlay(
                                 onMaxPerClassChange = onMaxPerClassChange,
                                 markerSizeCm = markerSizeCm,
                                 onMarkerSizeCmChange = onMarkerSizeCmChange,
-                                targetLabel         = targetLabel,
+                                targetLabel = targetLabel,
                                 onTargetLabelChange = onTargetLabelChange
                             )
                         }
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.height(6.dp))
                 }
 
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.Bottom)
-                        .padding(bottom = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (isCameraActive) {
-                        val arucoOk = calibrationState is CalibrationState.Calibrated
-                        StatusChip(
-                            label = if (arucoOk) "✓ ArUco" else "✗ ArUco",
-                            active = arucoOk
-                        )
-                        val objOk = selectedObject != null
-                        StatusChip(
-                            label = if (objOk) "★ ${selectedObject!!.label} ×" else "Toca objeto",
-                            active = objOk,
-                            onClick = if (objOk) onClearSelection else null
-                        )
-                    }
-
+                    Spacer(Modifier.width(6.dp))
                     IconButton(
                         onClick = onBack,
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(38.dp)
                             .background(
                                 Color(0x88000000),
                                 shape = androidx.compose.foundation.shape.CircleShape
                             )
-                    ) {
+                    ){
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver",
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
+                    Spacer(Modifier.width(6.dp))
                     IconButton(
                         onClick = onToggleConfig,
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(38.dp)
                             .background(
                                 Color(0xFF289BAD),
                                 shape = androidx.compose.foundation.shape.CircleShape
@@ -459,33 +427,53 @@ private fun CameraOverlay(
                             imageVector = Icons.Filled.Settings,
                             contentDescription = "Configuración",
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
+                    Spacer(Modifier.width(6.dp))
                     Button(
                         onClick = onToggleCamera,
                         enabled = !isRunning,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(36.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isCameraActive) Color(0xFF555577) else Color(0xFF2B77CB),
                             disabledContainerColor = Color(0xFF797676)
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        )
                     ) {
                         Text(
-                            text = if (isCameraActive) "Detener" else "Calibrar |\nDetectar",
-                            fontSize = 11.sp
+                            text = if (isCameraActive) "Detener" else "Calibrar | Detectar",
+                            fontSize = 10.sp
                         )
                     }
+
+                    if (isCameraActive) {
+                        val arucoOk = calibrationState is CalibrationState.Calibrated
+                        StatusChip(
+                            label = if (arucoOk) "✓ ArUco" else "✗ ArUco",
+                            active = arucoOk
+                        )
+
+                        val objOk = selectedObject != null
+                        StatusChip(
+                            label = if (objOk) "★ ${selectedObject!!.label} ×" else "Toca objeto",
+                            active = objOk,
+                            onClick = if (objOk) onClearSelection else null
+                        )
+                    }
+
+                    Spacer(Modifier.width(6.dp))
 
                     Button(
                         onClick = onStartStop,
                         enabled = isCameraActive && selectedObject != null,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                        modifier = Modifier.height(36.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isRunning) Color.Red else AppGreenPrimary,
                             disabledContainerColor = Color(0xFF969191)
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        )
                     ) {
                         Text(
                             text = if (isRunning) "Detener" else "Iniciar",
@@ -635,21 +623,8 @@ private fun CameraOverlay(
  * Contenido interno del panel de configuración, compartido entre orientaciones.
  *
  * Incluye el selector de modelo TFLite, el selector de umbral de confianza,
- * los sliders de límite de detecciones por frame y por clase, y el slider
- * del tamaño físico del marcador ArUco.
- *
- * @param models Lista de modelos disponibles.
- * @param selectedModel Modelo actualmente seleccionado.
- * @param isCameraActive `true` si la cámara está activa; deshabilita el selector de modelo.
- * @param onSelectModel Callback invocado al seleccionar un nuevo modelo.
- * @param sensitivity Nivel de sensibilidad de detección actual.
- * @param onSensitivityChange Callback invocado al cambiar la sensibilidad.
- * @param maxPerFrame Número máximo de detecciones por frame.
- * @param onMaxPerFrameChange Callback invocado al cambiar el límite por frame.
- * @param maxPerClass Número máximo de detecciones por clase.
- * @param onMaxPerClassChange Callback invocado al cambiar el límite por clase.
- * @param markerSizeCm Tamaño del marcador ArUco en centímetros.
- * @param onMarkerSizeCmChange Callback invocado al cambiar el tamaño del marcador.
+ * los sliders de límite de detecciones por frame y por clase, el slider
+ * del tamaño físico del marcador ArUco y el selector de clase objetivo.
  */
 @Composable
 private fun ConfigPanelContent(
@@ -780,11 +755,6 @@ private fun ConfigPanelContent(
  *
  * Se deshabilita mientras la cámara está activa para evitar cambiar el
  * modelo durante una sesión de detección en curso.
- *
- * @param models Lista de modelos disponibles.
- * @param selectedModel Modelo actualmente seleccionado.
- * @param enabled `false` si el selector debe estar deshabilitado.
- * @param onSelect Callback invocado al seleccionar un modelo de la lista.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -822,8 +792,6 @@ private fun ModelDropdown(
 /**
  * Icono de información con tooltip emergente al pulsarlo.
  *
- * Muestra un [DropdownMenu] con [text] al tocar el icono de ayuda.
- *
  * @param text Texto informativo a mostrar en el tooltip.
  */
 @Composable
@@ -842,8 +810,6 @@ fun InfoTooltip(text: String) {
 
 /**
  * Fila de chips para seleccionar el nivel de sensibilidad de detección.
- *
- * Muestra un [FilterChip] por cada valor de [Sensitivity].
  *
  * @param value Nivel de sensibilidad actualmente seleccionado.
  * @param onChange Callback invocado al seleccionar un nivel diferente.
