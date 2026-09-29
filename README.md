@@ -3,6 +3,8 @@
 **PhiLab** es una aplicación móvil nativa para Android que convierte la cámara de tu celular en un laboratorio portátil de física. Usando visión por computadora en tiempo real, captura el movimiento rectilíneo de un objeto y calcula automáticamente sus parámetros cinemáticos: posición, velocidad, aceleración y distancia recorrida.
 
 ---
+![PhiLab](app/src/main/assets/PhiLab.png)
+---
 
 ## Características principales
 
