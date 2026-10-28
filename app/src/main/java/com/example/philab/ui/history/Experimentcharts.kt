@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.philab.domain.experiment.ExperimentResults
 import com.example.philab.domain.pipeline.ChartData
+import com.example.philab.domain.pipeline.KinematicFit
 import com.example.philab.domain.pipeline.KinematicPipeline
 import com.example.philab.domain.pipeline.PipelineConfig
 import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
@@ -67,20 +68,16 @@ private enum class GraphTab(val label: String, val emoji: String, val color: Col
 }
 
 /**
- * Incertidumbre calculada a partir de los puntos crudos de [ExperimentResults].
+ * Incertidumbre estándar (1σ) de los valores de resumen, tomada del ajuste por
+ * mínimos cuadrados de [KinematicFit] sobre los puntos crudos.
  *
  * Se calcula en un coroutine de fondo al construir [ReadyChartState], sin afectar
- * el [SessionRecorder] ni el rendimiento en tiempo real.
+ * el [SessionRecorder] ni el rendimiento en tiempo real. No incluye el error de la
+ * calibración de escala.
  *
- * Para posición y velocidad se usa la desviación estándar de los valores instantáneos.
- * Para aceleración se usa propagación de error desde la velocidad:
- * `σ_a = √2 × σ_v / duración`, ya que la aceleración media se calcula como
- * `(vFinal - vInicial) / duración` y la stddev de aceleraciones instantáneas
- * frame a frame amplifica el ruido cuadráticamente.
- *
- * @property positionStd Desviación estándar de las distancias entre puntos consecutivos.
- * @property speedStd Desviación estándar de las velocidades instantáneas frame a frame.
- * @property accelStd Incertidumbre de la aceleración media por propagación de error.
+ * @property positionStd Incertidumbre del desplazamiento sobre el eje del movimiento.
+ * @property speedStd Incertidumbre de la velocidad media.
+ * @property accelStd Incertidumbre de la aceleración.
  */
 private data class UncertaintyStats(
     val positionStd: Float,
@@ -89,50 +86,18 @@ private data class UncertaintyStats(
 )
 
 /**
- * Calcula la incertidumbre a partir de los puntos crudos del experimento.
+ * Calcula la incertidumbre de los valores de resumen a partir del ajuste cinemático.
  *
  * @param results Resultados del experimento con los puntos crudos.
  * @return [UncertaintyStats] con las incertidumbres calculadas.
  */
 private fun computeUncertainty(results: ExperimentResults): UncertaintyStats {
-    val pts = results.points
-    if (pts.size < 3) return UncertaintyStats(0f, 0f, 0f)
-
-    val distances = mutableListOf<Float>()
-    val speeds = mutableListOf<Float>()
-
-    for (i in 1 until pts.size) {
-        val dx = pts[i].xCm - pts[i - 1].xCm
-        val dy = pts[i].yCm - pts[i - 1].yCm
-        val dist = kotlin.math.sqrt(dx * dx + dy * dy)
-        val dt = (pts[i].tMs - pts[i - 1].tMs) / 1000f
-        distances.add(dist)
-        if (dt > 0.005f) speeds.add(dist / dt)
-    }
-
-    val posStd = stdDev(distances)
-    val velStd = stdDev(speeds)
-
-    val durationS = (pts.last().tMs - pts.first().tMs) / 1000f
-    val accelStd = if (durationS > 0f) {
-        kotlin.math.sqrt(2f) * velStd / durationS
-    } else 0f
-
+    val fit = KinematicFit.fit(results.points)
     return UncertaintyStats(
-        positionStd = posStd,
-        speedStd    = velStd,
-        accelStd    = accelStd
+        positionStd = fit.displacementStdErr,
+        speedStd    = fit.meanVelocityStdErr,
+        accelStd    = fit.accelerationStdErr
     )
-}
-
-/**
- * Calcula la desviación estándar de una lista de flotantes.
- */
-private fun stdDev(values: List<Float>): Float {
-    if (values.size < 2) return 0f
-    val mean = values.average().toFloat()
-    val variance = values.map { (it - mean) * (it - mean) }.average().toFloat()
-    return kotlin.math.sqrt(variance)
 }
 
 /**
@@ -210,9 +175,6 @@ fun ExperimentCharts(
                             madMultiplier         = 3.5f,
                             windowSize            = 7,
                             velocityMadMultiplier = 4.0f,
-                            maxGapToInterpolate   = 0.4f,
-                            smoothingWindowSize   = 5,
-                            smoothingPasses       = 2,
                             maxChartPoints        = 350
                         )
                     ).chart

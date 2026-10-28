@@ -36,6 +36,8 @@ import kotlin.math.min
  * 3. Gestión del cambio de selección de objeto por parte del usuario.
  * 4. Actualización del tracker: si hay detección nueva → Kalman correct;
  *    si no → Kalman predict con decaimiento de velocidad; si Kalman agotado → Lost.
+ *    Una detección solo se usa una vez: los frames intermedios nunca reutilizan
+ *    detecciones viejas como si fueran mediciones nuevas.
  * 5. Lanzamiento asíncrono de inferencia TFLite cada [detectionEveryNFrames] frames,
  *    con detección forzada inmediata al seleccionar un objeto sin tracking activo.
  * 6. Detección de marcadores ArUco cada [arucoEveryNFrames] frames (aislada:
@@ -43,8 +45,9 @@ import kotlin.math.min
  *    de cmPerPx y congela el valor cuando es estable para evitar fluctuaciones
  *    durante la grabación.
  * 7. Cálculo de medición física si hay calibración disponible.
- * 8. Grabación del punto de posición con suavizado EMA, filtro de saltos
- *    y timestamp del sensor de cámara.
+ * 8. Grabación del centro crudo de cada detección nueva (sin suavizado causal,
+ *    que introduce retraso) con el timestamp del frame en el que se midió.
+ *    El suavizado y el ajuste se hacen después, sobre la trayectoria completa.
  * 9. Emisión de resultados a la UI evitando duplicados.
  *
  * @property detectorProvider Proveedor del detector TFLite activo.
@@ -84,7 +87,7 @@ class FrameAnalyzer(
     private val maxPerClassProvider: () -> Int,
     private val maxPerFrameProvider: () -> Int,
     private val arucoEveryNFrames: Int = 7,
-    private val detectionEveryNFrames: Int = 3,
+    private val detectionEveryNFrames: Int = 1,
     private val selectedCenterProvider: () -> Pair<Float, Float>?,
     private val onTrackedDetection: (UiDetection?) -> Unit,
     private val sessionRecorder: SessionRecorder,
@@ -177,10 +180,13 @@ class FrameAnalyzer(
      *
      * @property detection La detección más cercana al centro de referencia.
      * @property allDetections Lista completa de detecciones del mismo frame de inferencia.
+     * @property frameTimestampNs Timestamp del sensor del frame sobre el que se corrió la
+     *   inferencia. Es el instante real de la medición, no el del frame que la aplica.
      */
     private data class PendingDetection(
         val detection: UiDetection,
-        val allDetections: List<UiDetection>
+        val allDetections: List<UiDetection>,
+        val frameTimestampNs: Long
     )
 
     /** Detección pendiente escrita por el hilo de inferencia y leída por el hilo de análisis. */
@@ -222,20 +228,33 @@ class FrameAnalyzer(
     /** Factor EMA activo en el frame actual, alternado entre [alphaMeasured] y [alphaPredicted]. */
     private var currentAlpha = alphaMeasured
 
-    /** Factor EMA para suavizar el centroide antes de grabar en [SessionRecorder]. */
-    private val emaAlpha = 0.25f
+    /** Última coordenada X grabada en [SessionRecorder], para el filtro de saltos. */
+    private var lastRecordedX: Float? = null
 
-    /** Última coordenada X suavizada del centroide para grabación. */
-    private var emaX: Float? = null
+    /** Última coordenada Y grabada en [SessionRecorder], para el filtro de saltos. */
+    private var lastRecordedY: Float? = null
 
-    /** Última coordenada Y suavizada del centroide para grabación. */
-    private var emaY: Float? = null
+    /** Timestamp del sensor del último punto grabado. */
+    private var lastRecordedTsNs = 0L
 
-    /** Desplazamiento máximo en píxeles entre frames consecutivos antes de descartar como salto. */
-    private val maxJumpPx = 120f
+    /**
+     * Velocidad máxima plausible del objeto en píxeles por segundo. Un desplazamiento
+     * mayor a `maxSpeedPxPerSec * dt + minJumpPx` se considera un salto del tracker
+     * (por ejemplo, a otro objeto) y no un movimiento real.
+     */
+    private val maxSpeedPxPerSec = 4000f
 
-    /** Timestamp del sensor de cámara del primer punto grabado en la sesión actual. */
-    private var recordingStartTimestampNs = 0L
+    /** Holgura fija en píxeles del filtro de saltos, para absorber el ruido del bounding box. */
+    private val minJumpPx = 40f
+
+    /**
+     * Saltos consecutivos tras los cuales se acepta la nueva posición como válida.
+     * Evita que la grabación quede bloqueada para siempre después de un salto real.
+     */
+    private val maxConsecutiveJumps = 3
+
+    /** Número de saltos consecutivos descartados desde el último punto aceptado. */
+    private var consecutiveJumps = 0
 
     /** Última lista de detecciones emitida a la UI, para deduplicación. */
     private var lastEmitDetections: List<UiDetection> = emptyList()
@@ -319,11 +338,10 @@ class FrameAnalyzer(
                     lastDetectorBbox = null
                     null
                 } else {
-                    val newDetection = if (pending != null && pending.detection.matchesTarget()) {
-                        pending.detection
-                    } else {
-                        closestDetectionTo(lastTrackedCenter ?: selectedCenter)
-                    }
+                    // Solo una detección recién llegada cuenta como medición. Reutilizar
+                    // latestAllDetections aquí congelaba la posición varios frames y luego
+                    // la hacía saltar, produciendo trayectorias en escalera.
+                    val newDetection = pending?.detection?.takeIf { it.matchesTarget() }
 
                     if (newDetection != null) {
                         trackingSource = TrackingSource.DETECTOR
@@ -344,7 +362,11 @@ class FrameAnalyzer(
                         smoothBbox(filtered, srcW, srcH, newDetection)
 
                     } else if (try { bboxKalman.isInitialized() } catch (_: Throwable) { false }) {
-                        val predicted = try { bboxKalman.predict() } catch (_: Throwable) { null }
+                        // Mientras hay una inferencia en curso el objeto no está perdido,
+                        // solo falta su siguiente medición.
+                        val predicted = try {
+                            bboxKalman.predict(countAsLost = !detectionRunning)
+                        } catch (_: Throwable) { null }
                         if (predicted != null) {
                             trackingSource = TrackingSource.KALMAN_PREDICT
                             currentAlpha = alphaPredicted
@@ -372,7 +394,7 @@ class FrameAnalyzer(
                         && !(try { bboxKalman.isInitialized() } catch (_: Throwable) { false })
                 if ((frameCounter % detectionEveryNFrames == 0 || forceDetection) && !detectionRunning) {
                     val refCenter = lastTrackedCenter ?: selectedCenter
-                    launchDetection(bitmap, srcW, srcH, detector, refCenter)
+                    launchDetection(bitmap, srcW, srcH, detector, refCenter, frameTimestampNs)
                 }
 
                 arucoFrameCounter++
@@ -386,8 +408,9 @@ class FrameAnalyzer(
                     measurementManager.measureObject(trackedThisFrame, calibrated.cmPerPx)
                 else null
 
-                if (isRecording() && sessionRecorder.isActive && trackedThisFrame != null) {
-                    recordPoint(trackedThisFrame, calibrated, frameTimestampNs)
+                if (isRecording() && sessionRecorder.isActive
+                    && trackingSource == TrackingSource.DETECTOR && pending != null) {
+                    recordPoint(pending.detection, calibrated, pending.frameTimestampNs)
                 }
 
                 val uiDetections = buildUiDetections(trackedThisFrame, latestAllDetections)
@@ -434,7 +457,7 @@ class FrameAnalyzer(
         if (selectedCenter == null) {
             try { bboxKalman.reset() } catch (_: Throwable) {}
             smoothInit = false
-            emaX = null; emaY = null
+            resetRecordingGate()
             lastTrackedCenter = null
             lastDetectorBbox = null
         } else if (lastKnownCenter == null) {
@@ -520,13 +543,15 @@ class FrameAnalyzer(
      * @param srcH Alto del bitmap fuente en píxeles.
      * @param detector Instancia del detector TFLite a utilizar.
      * @param refCenter Centro de referencia para elegir la detección más cercana al objeto trackeado.
+     * @param frameTimestampNs Timestamp del sensor del frame que se envía a inferencia.
      */
     private fun launchDetection(
         bitmap: Bitmap,
         srcW: Int,
         srcH: Int,
         detector: TfliteObjectDetector,
-        refCenter: Pair<Float, Float>?
+        refCenter: Pair<Float, Float>?,
+        frameTimestampNs: Long
     ) {
         val bmpCopy = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
         val cropSize = min(srcW, srcH)
@@ -538,8 +563,10 @@ class FrameAnalyzer(
         val maxPClass = maxPerClassProvider().coerceIn(1, 10)
         val maxPFrame = maxPerFrameProvider().coerceIn(1, 6)
 
+        // Se marca antes de lanzar para que el siguiente frame no dispare una segunda
+        // inferencia mientras la corrutina todavía no arranca.
+        detectionRunning = true
         detectionScope.launch {
-            detectionRunning = true
             try {
                 ensureProcessor(cropSize, detector.inputWidth, detector.inputHeight)
                 reusableTensorImage.load(bmpCopy)
@@ -578,7 +605,7 @@ class FrameAnalyzer(
 
                 val allWithSelection = raw.map { it.copy(isSelected = it == best) }
                 if (best != null) {
-                    pendingDetection = PendingDetection(best, allWithSelection)
+                    pendingDetection = PendingDetection(best, allWithSelection, frameTimestampNs)
                 } else {
                     latestAllDetections = allWithSelection
                 }
@@ -609,39 +636,41 @@ class FrameAnalyzer(
     }
 
     /**
-     * Registra un punto de posición en el [sessionRecorder] con suavizado EMA
-     * y detección de saltos.
+     * Registra en el [sessionRecorder] el centro crudo de una detección nueva.
      *
-     * Aplica un filtro EMA con alpha = [emaAlpha] sobre el centroide del objeto.
-     * Si el desplazamiento respecto al punto anterior supera [maxJumpPx] píxeles,
-     * el punto se descarta para evitar artefactos en la trayectoria.
-     * Usa el timestamp del sensor de cámara para garantizar precisión temporal.
+     * No aplica suavizado: un filtro causal (EMA) retrasa la posición y aplana la
+     * aceleración. El ruido se trata después con el ajuste por mínimos cuadrados.
      *
-     * @param tracked Detección trackeada del frame actual.
+     * Descarta saltos imposibles (desplazamiento mayor a [maxSpeedPxPerSec] · dt +
+     * [minJumpPx]). Tras [maxConsecutiveJumps] saltos seguidos acepta la nueva
+     * posición, para no bloquear la grabación si el objeto realmente se movió rápido.
+     *
+     * @param measured Detección medida en el frame [frameTimestampNs].
      * @param calibrated Estado de calibración activo, o null si no hay calibración.
-     * @param frameTimestampNs Timestamp del sensor de cámara en nanosegundos.
+     * @param frameTimestampNs Timestamp del sensor del frame en el que se midió la detección.
      */
     private fun recordPoint(
-        tracked: UiDetection,
+        measured: UiDetection,
         calibrated: CalibrationState.Calibrated?,
         frameTimestampNs: Long
     ) {
-        val rawCx = (tracked.left + tracked.right) / 2f
-        val rawCy = (tracked.top + tracked.bottom) / 2f
-        val prevX = emaX; val prevY = emaY
+        if (sessionRecorder.pointCount == 0) resetRecordingGate()
+        if (frameTimestampNs <= lastRecordedTsNs) return
 
-        val isJump = prevX != null && prevY != null &&
-                (abs(rawCx - prevX) > maxJumpPx || abs(rawCy - prevY) > maxJumpPx)
+        val cx = (measured.left + measured.right) / 2f
+        val cy = (measured.top + measured.bottom) / 2f
+        val prevX = lastRecordedX; val prevY = lastRecordedY
 
-        if (isJump) return
-
-        val cx = prevX?.let { it + emaAlpha * (rawCx - it) } ?: rawCx
-        val cy = prevY?.let { it + emaAlpha * (rawCy - it) } ?: rawCy
-        emaX = cx; emaY = cy
-
-        if (recordingStartTimestampNs == 0L) {
-            recordingStartTimestampNs = frameTimestampNs
+        if (prevX != null && prevY != null) {
+            val dtS = (frameTimestampNs - lastRecordedTsNs) / 1e9f
+            val maxStepPx = maxSpeedPxPerSec * dtS + minJumpPx
+            val isJump = abs(cx - prevX) > maxStepPx || abs(cy - prevY) > maxStepPx
+            if (isJump && ++consecutiveJumps < maxConsecutiveJumps) return
         }
+
+        consecutiveJumps = 0
+        lastRecordedX = cx; lastRecordedY = cy
+        lastRecordedTsNs = frameTimestampNs
 
         if (calibrated != null) {
             sessionRecorder.updateMetadata(cmPerPx = calibrated.cmPerPx, unit = "cm")
@@ -656,6 +685,13 @@ class FrameAnalyzer(
                 frameTimestampNs = frameTimestampNs
             )
         }
+    }
+
+    /** Olvida el último punto grabado para que la siguiente medición no se compare con él. */
+    private fun resetRecordingGate() {
+        lastRecordedX = null; lastRecordedY = null
+        lastRecordedTsNs = 0L
+        consecutiveJumps = 0
     }
 
     /**
@@ -765,12 +801,11 @@ class FrameAnalyzer(
         recentCmPerPx.clear()
         try { bboxKalman.reset() } catch (_: Throwable) {}
         smoothInit = false
-        emaX = null; emaY = null
+        resetRecordingGate()
         lastKnownCenter = null; lastTrackedCenter = null
         lastDetectorBbox = null
         latestAllDetections = emptyList()
         pendingDetection = null
-        recordingStartTimestampNs = 0L
         lastTrackingSource = TrackingSource.NONE; lastTrackingDebug = ""
         onTrackingDebug("Tracking: Idle")
         emitIfChanged(emptyList(), null, CalibrationState.Idle, "Modelo de detección listo")

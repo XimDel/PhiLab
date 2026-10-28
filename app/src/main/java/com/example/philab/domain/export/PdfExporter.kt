@@ -14,6 +14,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.example.philab.domain.experiment.ExperimentResults
 import com.example.philab.domain.experiment.MotionClassifier
+import com.example.philab.domain.pipeline.KinematicFit
 import com.example.philab.domain.pipeline.KinematicPipeline
 import com.example.philab.domain.pipeline.PipelineConfig
 import java.io.OutputStream
@@ -73,7 +74,7 @@ object PdfExporter {
     private val FONT_NORMAL = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
 
     /**
-     * Incertidumbre calculada a partir de los puntos crudos del experimento.
+     * Incertidumbre estándar (1σ) de los valores de resumen, del ajuste de [KinematicFit].
      */
     private data class UncertaintyStats(
         val positionStd: Float,
@@ -82,41 +83,12 @@ object PdfExporter {
     )
 
     /**
-     * Calcula la incertidumbre a partir de los puntos crudos.
+     * Calcula la incertidumbre a partir del ajuste cinemático.
      * Misma lógica que ExperimentCharts.computeUncertainty().
      */
     private fun computeUncertainty(results: ExperimentResults): UncertaintyStats {
-        val pts = results.points
-        if (pts.size < 3) return UncertaintyStats(0f, 0f, 0f)
-
-        val distances = mutableListOf<Float>()
-        val speeds = mutableListOf<Float>()
-
-        for (i in 1 until pts.size) {
-            val dx = pts[i].xCm - pts[i - 1].xCm
-            val dy = pts[i].yCm - pts[i - 1].yCm
-            val dist = kotlin.math.sqrt(dx * dx + dy * dy)
-            val dt = (pts[i].tMs - pts[i - 1].tMs) / 1000f
-            distances.add(dist)
-            if (dt > 0.005f) speeds.add(dist / dt)
-        }
-
-        val posStd = stdDev(distances)
-        val velStd = stdDev(speeds)
-
-        val durationS = (pts.last().tMs - pts.first().tMs) / 1000f
-        val accelStd = if (durationS > 0f) {
-            kotlin.math.sqrt(2f) * velStd / durationS
-        } else 0f
-
-        return UncertaintyStats(posStd, velStd, accelStd)
-    }
-
-    private fun stdDev(values: List<Float>): Float {
-        if (values.size < 2) return 0f
-        val mean = values.average().toFloat()
-        val variance = values.map { (it - mean) * (it - mean) }.average().toFloat()
-        return kotlin.math.sqrt(variance)
+        val fit = KinematicFit.fit(results.points)
+        return UncertaintyStats(fit.displacementStdErr, fit.meanVelocityStdErr, fit.accelerationStdErr)
     }
 
     private fun isDemo(results: ExperimentResults): Boolean =
@@ -212,9 +184,6 @@ object PdfExporter {
                     madMultiplier         = 3.5f,
                     windowSize            = 7,
                     velocityMadMultiplier = 4.0f,
-                    maxGapToInterpolate   = 0.4f,
-                    smoothingWindowSize   = 5,
-                    smoothingPasses       = 2,
                     maxChartPoints        = 350
                 )
             ).chart

@@ -1,7 +1,6 @@
 package com.example.philab.domain.pipeline
 
 import com.example.philab.domain.experiment.ExperimentResults
-import kotlin.math.abs
 
 /**
  * Orquestador del pipeline cinemático completo. Transforma un [ExperimentResults]
@@ -10,14 +9,14 @@ import kotlin.math.abs
  * Las etapas se ejecutan en orden secuencial:
  *
  * 1. **[RawPointConverter]** — convierte y normaliza los puntos del dominio.
- * 2. **[OutlierDetector]** — marca outliers sin eliminarlos todavía.
- * 3. **[Smoother]** — suaviza posición sobre todos los puntos, incluyendo los marcados como inválidos,
- *    para reducir el impacto de los saltos en los bordes.
+ * 2. **Proyección** — con el eje obtenido por [KinematicFit], cada punto pasa a ser la
+ *    posición sobre la línea del movimiento, medida desde el punto de partida. Así las
+ *    gráficas son correctas para movimiento horizontal, vertical o inclinado.
+ * 3. **[OutlierDetector]** — marca outliers sobre la posición proyectada.
  * 4. Filtrado — descarta los puntos inválidos sin interpolar gaps.
- * 5. **[DerivativeCalculator]** — calcula velocidad y aceleración con diferencias centrales.
- * 6. Clip de percentil 98 — limita valores extremos de velocidad y aceleración.
- * 7. Suavizado de velocidad y aceleración con más pasadas que la posición.
- * 8. **[Downsampler]** — reduce los puntos para graficar usando LTTB.
+ * 5. **[DerivativeCalculator]** — posición suavizada, velocidad y aceleración por
+ *    regresión polinomial local, sin retraso ni recortes de valores extremos.
+ * 6. **[Downsampler]** — reduce los puntos para graficar usando LTTB.
  */
 object KinematicPipeline {
 
@@ -30,6 +29,8 @@ object KinematicPipeline {
      * @param results Resultado de la sesión de experimento a procesar.
      * @param config Parámetros del pipeline. Si se omite se usan los valores por defecto.
      * @return [PipelineResult] con los puntos crudos, limpios, de movimiento y datos de gráfica.
+     *   En los puntos limpios y de movimiento, `x` es la posición sobre el eje del movimiento
+     *   e `y` la desviación perpendicular a él.
      */
     fun process(
         results: ExperimentResults,
@@ -40,22 +41,18 @@ object KinematicPipeline {
 
         if (raw.size < 3) return emptyResult(raw, results.unit)
 
-        val afterOutlierDetection = OutlierDetector.detect(raw, config)
+        val projected = projectOntoMotionAxis(raw)
+
+        val afterOutlierDetection = OutlierDetector.detect(projected, config)
         val outliersRemoved = afterOutlierDetection.count { !it.isValid }
 
-        val smoothedAll = Smoother.smooth(afterOutlierDetection, config)
-
-        val validOnly = smoothedAll.filter { it.isValid }
+        val validOnly = afterOutlierDetection.filter { it.isValid }
 
         if (validOnly.size < 3) return emptyResult(raw, results.unit)
 
         val motionPoints = DerivativeCalculator.calculate(validOnly, config)
 
-        val clipped = clipExtremes(motionPoints)
-
-        val motionSmoothed = smoothMotion(clipped, config)
-
-        val downsampled = Downsampler.downsampleMotion(motionSmoothed, config.maxChartPoints)
+        val downsampled = Downsampler.downsampleMotion(motionPoints, config.maxChartPoints)
 
         val chart = ChartData(
             position         = downsampled.position,
@@ -71,86 +68,26 @@ object KinematicPipeline {
         return PipelineResult(
             raw    = raw,
             clean  = validOnly,
-            motion = motionSmoothed,
+            motion = motionPoints,
             chart  = chart
         )
     }
 
     /**
-     * Clampea los valores de velocidad y aceleración al percentil 98 de sus
-     * respectivos valores absolutos, evitando que un spike aislado distorsione
-     * la escala de las gráficas.
+     * Convierte cada punto (x, y) en (posición sobre el eje, desviación perpendicular).
      *
-     * No tiene efecto si [points] tiene menos de 5 elementos.
-     *
-     * @param points Lista de [MotionPoint] a procesar.
-     * @return Nueva lista con velocidad y aceleración limitadas al rango `[-p98, p98]`.
+     * La posición se mide desde el inicio del movimiento según el ajuste, de modo que la
+     * gráfica de posición arranca en ~0 y crece en el sentido del desplazamiento.
      */
-    private fun clipExtremes(points: List<MotionPoint>): List<MotionPoint> {
-        if (points.size < 5) return points
-
-        val speeds = points.map { kotlin.math.abs(it.velocity) }.sorted()
-        val accels = points.map { kotlin.math.abs(it.acceleration) }.sorted()
-
-        val p98index = (speeds.size * 0.98f).toInt().coerceAtMost(speeds.lastIndex)
-        val maxSpeed = speeds[p98index]
-        val maxAccel = accels[p98index]
-
-        return points.map { mp ->
-            mp.copy(
-                velocity     = mp.velocity.coerceIn(-maxSpeed, maxSpeed),
-                acceleration = mp.acceleration.coerceIn(-maxAccel, maxAccel)
+    private fun projectOntoMotionAxis(raw: List<RawPoint>): List<RawPoint> {
+        val fit = KinematicFit.fitRaw(raw)
+        val start = fit.positionAt(raw.first().tSec) ?: fit.project(raw.first().x, raw.first().y)
+        return raw.map { p ->
+            RawPoint(
+                tSec = p.tSec,
+                x = fit.project(p.x, p.y) - start,
+                y = fit.perpendicular(p.x, p.y)
             )
-        }
-    }
-
-    /**
-     * Aplica suavizado adicional sobre las series de velocidad y aceleración
-     * con más pasadas que las usadas para la posición, dado que son señales
-     * de mayor orden y más susceptibles al ruido.
-     *
-     * @param points Lista de [MotionPoint] con velocidad y aceleración calculadas.
-     * @param config Parámetros del pipeline con el número de pasadas base y el tamaño de ventana.
-     * @return Lista de [MotionPoint] con velocidad y aceleración suavizadas.
-     */
-    private fun smoothMotion(
-        points: List<MotionPoint>,
-        config: PipelineConfig
-    ): List<MotionPoint> {
-        if (points.size < 3) return points
-
-        var velocities    = points.map { it.velocity }
-        var accelerations = points.map { it.acceleration }
-
-        val velPasses   = config.smoothingPasses + 1
-        val accelPasses = config.smoothingPasses + 2
-        val accelWindow = config.smoothingWindowSize + 4
-
-        repeat(velPasses) {
-            velocities = smoothFloatList(velocities, config.smoothingWindowSize)
-        }
-        repeat(accelPasses) {
-            accelerations = smoothFloatList(accelerations, accelWindow)
-        }
-
-        return points.mapIndexed { i, mp ->
-            mp.copy(velocity = velocities[i], acceleration = accelerations[i])
-        }
-    }
-
-    /**
-     * Aplica una media móvil simple de ventana [windowSize] sobre una lista de flotantes.
-     *
-     * @param values Lista de valores a suavizar.
-     * @param windowSize Número de puntos de la ventana deslizante.
-     * @return Lista suavizada de la misma longitud que [values].
-     */
-    private fun smoothFloatList(values: List<Float>, windowSize: Int): List<Float> {
-        val half = windowSize / 2
-        return values.mapIndexed { i, _ ->
-            val start = maxOf(0, i - half)
-            val end   = minOf(values.lastIndex, i + half)
-            values.subList(start, end + 1).average().toFloat()
         }
     }
 

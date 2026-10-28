@@ -149,13 +149,15 @@ class BboxKalman {
      * filtro y aplica [velocityDecay] a los componentes de velocidad del estado
      * posterior para limitar la divergencia en ausencia de observaciones.
      *
+     * @param countAsLost `false` cuando la medición solo está retrasada (hay una
+     *   inferencia en curso): no suma fotogramas perdidos ni frena la velocidad.
      * @return Rectángulo predicho, o `null` si el filtro no está inicializado o se
      *         superó el número máximo de fotogramas sin medición.
      */
     @Synchronized
-    fun predict(): Rect? {
+    fun predict(countAsLost: Boolean = true): Rect? {
         if (!initialized) return null
-        framesLost++
+        if (countAsLost) framesLost++
         if (framesLost > MAX_FRAMES_LOST) {
             reset()
             return null
@@ -164,7 +166,7 @@ class BboxKalman {
         val predicted = filter.predict()
 
         val state = filter.get_statePost()
-        if (state.rows() >= 8) {
+        if (countAsLost && state.rows() >= 8) {
             for (i in 4..7) {
                 val v = state.get(i, 0)[0].toFloat()
                 state.put(i, 0, floatArrayOf(v * velocityDecay))

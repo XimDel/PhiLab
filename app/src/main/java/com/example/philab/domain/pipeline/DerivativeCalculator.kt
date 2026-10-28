@@ -3,119 +3,90 @@ package com.example.philab.domain.pipeline
 import kotlin.math.abs
 
 /**
- * Etapa 4 del pipeline cinemático. Calcula velocidad (`dx/dt`) y aceleración (`dv/dt`)
- * usando diferencias centrales de segundo orden sobre los [CleanPoint] válidos.
+ * Etapa de derivación del pipeline cinemático. Estima posición, velocidad (`dx/dt`) y
+ * aceleración (`d²x/dt²`) con regresión polinomial local (Savitzky–Golay para
+ * muestreo irregular).
  *
- * Las diferencias centrales tienen error `O(dt²)` y son simétricas en fase,
- * lo que significa que el valor calculado corresponde exactamente al instante `t_i`
- * sin sesgo temporal. En los extremos de la señal se usan diferencias unilaterales
- * de primer orden para no extrapolar fuera del rango de datos.
+ * Para cada punto se ajusta una parábola por mínimos cuadrados a los vecinos dentro de
+ * una ventana de tiempo y se evalúan su valor y sus derivadas en `t_i`. A diferencia de
+ * derivar dos veces con diferencias finitas y luego suavizar:
+ * - no introduce retraso (la ventana está centrada en `t_i`),
+ * - es exacto para un MRUA (una parábola no se distorsiona),
+ * - funciona con timestamps irregulares, como los que produce la inferencia asíncrona.
  *
- * El intervalo de tiempo `dt` se clampea a [PipelineConfig.minDtMs] para evitar
- * divisiones por cero cuando hay timestamps casi idénticos por jitter del sistema.
+ * La aceleración usa una ventana más ancha que la velocidad porque la segunda derivada
+ * amplifica mucho más el ruido. En los extremos la ventana se desplaza hacia el interior
+ * en lugar de recortarse, para conservar el número de puntos del ajuste.
  */
 object DerivativeCalculator {
 
     /**
-     * Calcula velocidad y aceleración para cada punto de [points] y devuelve
-     * la lista equivalente de [MotionPoint].
+     * Calcula posición suavizada, velocidad y aceleración para cada punto de [points].
      *
-     * Si [points] tiene un solo elemento, se devuelve con velocidad y aceleración cero.
+     * Si [points] tiene menos de 3 elementos, se devuelven con velocidad y aceleración cero.
      *
-     * @param points Lista de puntos limpios y suavizados, ordenados por tiempo ascendente.
-     * @param config Parámetros del pipeline, en particular [PipelineConfig.minDtMs].
+     * @param points Lista de puntos limpios ordenados por tiempo ascendente.
+     * @param config Parámetros del pipeline: [PipelineConfig.velocityWindowSec],
+     *   [PipelineConfig.accelerationWindowSec] y [PipelineConfig.minWindowPoints].
      * @return Lista de [MotionPoint] con la misma longitud que [points].
      */
     fun calculate(
         points: List<CleanPoint>,
         config: PipelineConfig
     ): List<MotionPoint> {
-        if (points.isEmpty()) return emptyList()
-        if (points.size == 1) {
-            return listOf(points[0].toMotion(velocity = 0f, acceleration = 0f))
+        if (points.size < 3) {
+            return points.map { it.toMotion(x = it.x, velocity = 0f, acceleration = 0f) }
         }
 
-        val velocities = computeVelocities(points, config.minDtMs)
-        val accelerations = computeAccelerations(velocities, points, config.minDtMs)
+        val t = DoubleArray(points.size) { points[it].tSec.toDouble() }
+        val x = DoubleArray(points.size) { points[it].x.toDouble() }
+        val minPoints = config.minWindowPoints.coerceAtLeast(3)
 
         return points.mapIndexed { i, cp ->
+            val velFit = localFit(t, x, i, config.velocityWindowSec / 2.0, minPoints)
+            val accFit = localFit(t, x, i, config.accelerationWindowSec / 2.0, minPoints + 2)
+
+            val position = velFit?.valueAt(t[i]) ?: x[i]
+            val velocity = velFit?.let { it.coefficients[1] / it.scale } ?: 0.0
+            val acceleration = accFit?.let { 2.0 * it.coefficients[2] / (it.scale * it.scale) } ?: 0.0
+
             cp.toMotion(
-                velocity     = velocities[i],
-                acceleration = accelerations[i]
+                x            = position.toFloat(),
+                velocity     = velocity.toFloat(),
+                acceleration = acceleration.toFloat()
             )
         }
     }
 
     /**
-     * Calcula las velocidades instantáneas usando diferencias centrales en el interior
-     * y diferencias unilaterales en los extremos.
-     *
-     * @param points Lista de puntos limpios ordenados por tiempo.
-     * @param minDt Intervalo de tiempo mínimo en segundos para evitar divisiones por cero.
-     * @return Array de velocidades de la misma longitud que [points].
+     * Ajusta una parábola centrada en `t[i]` a los puntos con `|t - t[i]| <= halfWindowSec`.
+     * Si son menos de [minPoints], amplía la ventana con los vecinos más cercanos en tiempo.
      */
-    private fun computeVelocities(
-        points: List<CleanPoint>,
-        minDt: Float
-    ): FloatArray {
-        val n = points.size
-        val v = FloatArray(n)
-
-        for (i in points.indices) {
-            v[i] = when (i) {
-                0 -> {
-                    val dt = (points[1].tSec - points[0].tSec).coerceAtLeast(minDt)
-                    (points[1].x - points[0].x) / dt
-                }
-                n - 1 -> {
-                    val dt = (points[n - 1].tSec - points[n - 2].tSec).coerceAtLeast(minDt)
-                    (points[n - 1].x - points[n - 2].x) / dt
-                }
-                else -> {
-                    val dt = (points[i + 1].tSec - points[i - 1].tSec).coerceAtLeast(minDt * 2)
-                    (points[i + 1].x - points[i - 1].x) / dt
-                }
+    private fun localFit(
+        t: DoubleArray,
+        x: DoubleArray,
+        i: Int,
+        halfWindowSec: Double,
+        minPoints: Int
+    ): LeastSquares.PolyFit? {
+        val n = t.size
+        var lo = i
+        var hi = i
+        while (lo > 0 && t[i] - t[lo - 1] <= halfWindowSec) lo--
+        while (hi < n - 1 && t[hi + 1] - t[i] <= halfWindowSec) hi++
+        val target = minOf(minPoints, n)
+        while (hi - lo + 1 < target) {
+            val canLo = lo > 0
+            val canHi = hi < n - 1
+            when {
+                canLo && canHi -> if (t[i] - t[lo - 1] <= t[hi + 1] - t[i]) lo-- else hi++
+                canLo -> lo--
+                canHi -> hi++
+                else -> break
             }
         }
-
-        return v
-    }
-
-    /**
-     * Calcula las aceleraciones aplicando el mismo esquema de diferencias centrales
-     * sobre el array de velocidades ya calculado.
-     *
-     * @param velocities Array de velocidades calculado por [computeVelocities].
-     * @param points Lista de puntos original, usada para obtener los timestamps.
-     * @param minDt Intervalo de tiempo mínimo en segundos.
-     * @return Array de aceleraciones de la misma longitud que [velocities].
-     */
-    private fun computeAccelerations(
-        velocities: FloatArray,
-        points: List<CleanPoint>,
-        minDt: Float
-    ): FloatArray {
-        val n = velocities.size
-        val a = FloatArray(n)
-
-        for (i in velocities.indices) {
-            a[i] = when (i) {
-                0 -> {
-                    val dt = (points[1].tSec - points[0].tSec).coerceAtLeast(minDt)
-                    (velocities[1] - velocities[0]) / dt
-                }
-                n - 1 -> {
-                    val dt = (points[n - 1].tSec - points[n - 2].tSec).coerceAtLeast(minDt)
-                    (velocities[n - 1] - velocities[n - 2]) / dt
-                }
-                else -> {
-                    val dt = (points[i + 1].tSec - points[i - 1].tSec).coerceAtLeast(minDt * 2)
-                    (velocities[i + 1] - velocities[i - 1]) / dt
-                }
-            }
-        }
-
-        return a
+        val indices = IntArray(hi - lo + 1) { lo + it }
+        return LeastSquares.fit(t, x, degree = 2, indices = indices, center = t[i])
     }
 
     /**
@@ -159,7 +130,7 @@ object DerivativeCalculator {
         )
     }
 
-    private fun CleanPoint.toMotion(velocity: Float, acceleration: Float) = MotionPoint(
+    private fun CleanPoint.toMotion(x: Float, velocity: Float, acceleration: Float) = MotionPoint(
         tSec         = tSec,
         x            = x,
         y            = y,

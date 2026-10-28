@@ -107,12 +107,13 @@ data class PipelineResult(
  * @property velocityMadMultiplier Multiplicador MAD para la detección de outliers por velocidad instantánea.
  * @property minPointsForStats Número mínimo de puntos requeridos para calcular estadísticos MAD.
  *   Si hay menos puntos, todos se marcan como válidos.
- * @property maxGapToInterpolate Duración máxima en segundos de un gap que puede interpolarse.
- *   Gaps mayores se ignoran. Reservado para uso futuro.
  * @property minDtMs Intervalo de tiempo mínimo en segundos entre puntos consecutivos.
  *   Actúa como cota inferior en las divisiones para evitar inestabilidad numérica por jitter.
- * @property smoothingWindowSize Número de puntos de la ventana del suavizador LWMA.
- * @property smoothingPasses Número de pasadas del suavizador sobre la señal de posición.
+ * @property velocityWindowSec Ancho en segundos de la ventana de regresión local usada
+ *   para la posición suavizada y la velocidad.
+ * @property accelerationWindowSec Ancho en segundos de la ventana de regresión local usada
+ *   para la aceleración. Es mayor porque la segunda derivada amplifica más el ruido.
+ * @property minWindowPoints Número mínimo de puntos de cada ventana de regresión local.
  * @property maxChartPoints Número máximo de puntos por serie tras el downsampling.
  * @property minChartPoints Número mínimo de puntos por serie para no perder la forma de la señal.
  */
@@ -121,10 +122,10 @@ data class PipelineConfig(
     val windowSize: Int = 5,
     val velocityMadMultiplier: Float = 4f,
     val minPointsForStats: Int = 5,
-    val maxGapToInterpolate: Float = 0.5f,
     val minDtMs: Float = 0.005f,
-    val smoothingWindowSize: Int = 5,
-    val smoothingPasses: Int = 2,
+    val velocityWindowSec: Float = 0.25f,
+    val accelerationWindowSec: Float = 0.5f,
+    val minWindowPoints: Int = 5,
     val maxChartPoints: Int = 400,
     val minChartPoints: Int = 50
 )
